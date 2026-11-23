@@ -39,7 +39,7 @@ export interface Snapshot {
   memory_detail: MemoryDetail;
   disks: DiskInfo[]; networks: NetworkInfo[];
   perf: { physical_disks: PhysicalDisk[]; memory_lists: { standby: number | null; modified: number | null; free: number | null } };
-  gpu: { supported: boolean; live: GpuLive[] }; gpu_adapters: GpuAdapter[]; net_adapters: NetAdapter[];
+  gpu: { supported: boolean; live: GpuLive[] }; gpu_adapters: GpuAdapter[]; net_adapters: NetAdapter[]; collect_ms: number;
   processes: ProcessInfo[];
 }
 export interface TreeRow { process: ProcessInfo; depth: number; hasChildren: boolean; expanded: boolean }

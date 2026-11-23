@@ -126,5 +126,6 @@ export function System({ snapshot: s }: { snapshot: Snapshot | null }) {
       <article className="metric"><h2>Storage</h2><table className="mini-table"><tbody>{s?.disks.map(d => <tr key={d.mount}><td>{d.mount} <small className="muted">{d.file_system}</small></td><td className="num">{bytes(d.available)} free of {bytes(d.total)}</td></tr>)}</tbody></table></article>
       <article className="metric"><h2>Network adapters</h2><table className="mini-table"><tbody>{s?.networks.map(n => { const l = s.net_adapters.find(x => x.name === n.name); return <tr key={n.name}><td>{n.name}</td><td>{l?.link_speed_bps ? bitRate(l.link_speed_bps) : '—'}</td><td>{n.addresses[0] ?? 'no address'}</td></tr>; })}</tbody></table></article>
     </div>
+    {s && <p className="muted note">Last collection of {s.processes.length} processes and all metrics took {s.collect_ms.toFixed(1)} ms.</p>}
   </section>;
 }

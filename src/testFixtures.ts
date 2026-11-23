@@ -21,6 +21,7 @@ export function snapshot(processes: ProcessInfo[] = [proc(10, 'alpha.exe', { cpu
     perf: { physical_disks: [{ name: '0 C:', active_percent: 12, response_ms: 0.4, read_per_s: 1000, write_per_s: 2000, queue_length: 0 }], memory_lists: { standby: 2e9, modified: 1e8, free: 3e9 } },
     net_adapters: [{ name: 'WiFi', description: 'Test Wi-Fi', status: 'Connected', kind: 'Wi-Fi', link_speed_bps: 866_000_000 }],
     gpu: { supported: false, live: [] }, gpu_adapters: [{ name: 'Test GPU', driver_version: '1.0', driver_date: '2026', provider: 'Test', dedicated_memory: 8 * 1024 ** 3 }],
+    collect_ms: 12.5,
     processes,
   };
 }

@@ -103,6 +103,8 @@ pub struct Snapshot {
     gpu: GpuSnapshot,
     gpu_adapters: Vec<gpu::GpuAdapterInfo>,
     net_adapters: Vec<AdapterInfo>,
+    /// How long collecting this snapshot took, in milliseconds (a self-measurement of TaskLens overhead).
+    collect_ms: f64,
     processes: Vec<ProcessInfo>,
 }
 
@@ -148,6 +150,7 @@ pub fn counter_rate(prev: Option<u64>, now: u64, elapsed: Option<f64>) -> Option
 
 pub fn take_snapshot(c: &mut Collector) -> Snapshot {
     let now = Instant::now();
+    let started = Instant::now();
     let elapsed = c.last_refresh.map(|t| now.duration_since(t).as_secs_f64());
     c.last_refresh = Some(now);
 
@@ -272,6 +275,7 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
         .collect();
 
     let cpus = c.system.cpus();
+    let collect_ms = started.elapsed().as_secs_f64() * 1000.0;
     Snapshot {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -298,6 +302,7 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
         gpu: gpu_snapshot,
         gpu_adapters: c.gpu_adapters.clone(),
         net_adapters: c.net_adapters.1.clone(),
+        collect_ms,
         processes,
     }
 }
@@ -501,5 +506,10 @@ mod tests {
         assert!(!s.perf.physical_disks.is_empty());
         assert!(s.memory_detail.commit_total.is_some());
         assert!(s.net_adapters.iter().any(|a| a.status == "Connected"));
+        assert!(
+            s.collect_ms > 0.0 && s.collect_ms < 5000.0,
+            "collect_ms {}",
+            s.collect_ms
+        );
     }
 }
