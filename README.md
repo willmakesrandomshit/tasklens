@@ -1,51 +1,73 @@
+<p align="center"><img src="docs/assets/banner.svg" alt="TaskLens — Your system. Every process. Total control." width="100%"></p>
+
 # TaskLens
 
-> Your system. Every process. Total control.
+An open-source Windows task manager replacement built with **Rust**, **Tauri 2** and **React + TypeScript**.
+It combines Task Manager, Resource Monitor and Process Explorer-style inspection in one fast, local-only app.
 
-Maintainers: [@willmakesrandomshit](https://github.com/willmakesrandomshit) and [@mynameisjapan26-hue](https://github.com/mynameisjapan26-hue). Development pre-releases are unsigned and not yet suitable as a daily Task Manager replacement.
+> **Status: early pre-release (v0.1.0, unsigned).** Verified on Windows 11 x64 only. See
+> [Known limitations](docs/KNOWN_LIMITATIONS.md) and the [release checklist](docs/RELEASE_CHECKLIST.md) before relying on it.
 
+Maintainers: [@willmakesrandomshit](https://github.com/willmakesrandomshit) (Wil) and
+[@mynameisjapan26-hue](https://github.com/mynameisjapan26-hue) (Elq).
 
-**Your system. Every process. Total control.**
+![Processes](docs/screenshots/processes.png)
 
-TaskLens is an open-source Windows system-monitoring application under development, built with Rust, Tauri 2, React and TypeScript. It aims to provide a fast, understandable view of the processes and resources on your PC. This repository is an early development build; it is not yet a complete replacement for Windows Task Manager.
+*Screenshots are real captures of the running app (taken by the end-to-end test).*
 
-## Project status
+## What it does
 
-TaskLens is in active development. Consult the running application and [CHANGELOG.md](CHANGELOG.md) for currently implemented functionality. Windows services and startup management, persistent resource history, advanced GPU metrics, release packages, accessibility coverage and performance targets require verification before they can be advertised as complete. Unavailable readings should be displayed as unavailable rather than estimated or invented.
+| Area | Highlights |
+|---|---|
+| **Processes** | 25 columns (resize, reorder, show/hide), multi-column sort, flat / tree / by-app / by-user / by-session views, pinned processes, saved filters, search with highlighting, keyboard navigation, usage heatmap, right-click actions |
+| **Safe actions** | End process, end process tree, suspend/resume, priority, CPU affinity — every action is **verified against the process's exact creation time on the same handle**, so a recycled PID can never hit the wrong process. Critical/protected processes are refused. |
+| **Inspector** | Overview (publisher, version, signature, parent/children, redacted command line), live per-process graphs, threads, modules, connections, security |
+| **Performance** | CPU (per logical processor), memory (composition, commit, pools), disk (active time, response time, queue), network (status, link speed), GPU (engines, VRAM use) with pause and time ranges |
+| **Resource Monitor** | Per-resource process rankings with a focus process that stays on top across tabs |
+| **Startup / Services / Network / Users** | Run keys + Startup folders with reversible disable; Service Control Manager list/start/stop/restart (core services protected); TCP/UDP endpoints with owning process; sessions |
+| **History & timeline** | Optional local SQLite history (bounded by age and size), spike timeline that separates *observations* from *correlations*, CSV export |
+| **Alerts** | CPU/memory/GPU/disk/process thresholds with duration, cooldown and de-duplication. Alerts only notify. |
+| **Everyday polish** | Dark/light/system theme, accent colors, density, text size, reduced motion, tray icon, compact always-on-top monitor, opt-in start with Windows |
 
-There are currently no verified screenshots, release downloads or performance measurements to show here. Release builds should be clearly marked as unsigned unless signing has actually been performed.
+<p align="center">
+<img src="docs/screenshots/performance-cpu.png" width="49%"> <img src="docs/screenshots/inspector.png" width="49%"><br>
+<img src="docs/screenshots/process-tree.png" width="49%"> <img src="docs/screenshots/resource-monitor.png" width="49%">
+</p>
 
-## Development
+## Principles
+- **Real data only.** Unavailable metrics are shown as unavailable, never as zero. Temperatures, clocks and per-process
+  network bandwidth are not available through standard Windows APIs and are not shown.
+- **Local only.** No telemetry, accounts or network access. Settings and optional history live in
+  `%APPDATA%\com.tasklens.monitor`.
+- **Least privilege.** Runs as a standard user; it never tries to bypass access denials.
 
-On a Windows development machine, install a supported Rust toolchain, Node.js and npm, and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/), including the Microsoft C++ build tools and WebView2. Then:
+## Install
+Pre-release builds are published on the [Releases page](https://github.com/willmakesrandomshit/tasklens/releases) once a
+`v*` tag is pushed: an NSIS installer, a portable `.exe` and `SHA256SUMS.txt`. **Builds are unsigned**, so Windows
+SmartScreen may warn. Requires Windows 10/11 with the WebView2 runtime (preinstalled on Windows 11).
 
+## Build from source
+Requirements: Rust (stable, MSVC toolchain + Visual Studio Build Tools), Node 22+, WebView2.
 ```powershell
-npm install
-npm run tauri dev
+npm ci
+npm run tauri dev        # run with hot reload
+npm run tauri build      # release exe + installer in src-tauri/target/release
 ```
-
-Common checks:
-
+Checks (the same ones CI runs):
 ```powershell
-npm run typecheck
-npm run lint
-npm test
+npm run typecheck; npm run lint; npm test
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
-npm run tauri build
+npm run e2e              # drives the real release exe; needs a prior `tauri build`
+node tests/bench/bench.mjs src-tauri/target/release/tasklens.exe   # performance measurements
 ```
 
-Run these commands on Windows; availability of individual tests and build artifacts depends on the current development state. Neither Windows 10 nor Windows 11 compatibility is claimed verified until tested on each.
+## Documentation
+[Architecture](docs/ARCHITECTURE.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md) ·
+[Test results](docs/TEST_RESULTS.md) · [Benchmarks](docs/PERFORMANCE_BENCHMARKS.md) ·
+[Known limitations](docs/KNOWN_LIMITATIONS.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) ·
+[Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
-## Privacy and safety
-
-Core monitoring is intended to work locally without an account or cloud service. Process actions should be explicit, require confirmation for destructive actions, and respect Windows permissions. Never use the app to bypass security controls. Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
-
-## Architecture and contributing
-
-The React frontend communicates through narrowly defined Tauri commands with a Rust backend that reads system data. Platform access, error handling and action validation belong on the native side. See [the architecture notes](docs/ARCHITECTURE.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
-
-The project is intended as a collaboration between **Wil** and **Elq**. Proposed responsibilities are product, design and community for Wil, and systems, performance and reliability for Elq; both are welcome to contribute across the project. This describes intended collaboration and does not imply acceptance of an invitation or completed contributions.
-
-Licensed under the [MIT License](LICENSE).
+## License
+MIT — see [LICENSE](LICENSE).

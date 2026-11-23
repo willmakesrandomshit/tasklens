@@ -7,83 +7,83 @@
   },
   "build": "release (LTO), unsigned",
   "refreshIntervalMs": 2000,
-  "date": "2026-11-23T04:10:03.939Z",
-  "coldStartMs": 752,
-  "warmStartMs": 764,
-  "processCount": "357 processes",
+  "date": "2026-11-23T04:18:26.659Z",
+  "coldStartMs": 1638,
+  "warmStartMs": 723,
+  "processCount": "358 processes",
   "collectionMs": {
     "n": 15,
-    "median": 26.41,
-    "p95": 28.21,
-    "max": 28.21
+    "median": 20.88,
+    "p95": 29.02,
+    "max": 29.02
   },
   "snapshotIpcMs": {
     "n": 30,
-    "median": 3.2,
-    "p95": 4.2,
-    "max": 4.5
+    "median": 3.4,
+    "p95": 4.3,
+    "max": 4.4
   },
   "searchLatencyMs": {
     "n": 24,
-    "median": 7.6,
-    "p95": 15.4,
-    "max": 16.1
+    "median": 7.4,
+    "p95": 13.7,
+    "max": 16.5
   },
   "sortLatencyMs": {
     "n": 24,
-    "median": 9.2,
-    "p95": 11.7,
-    "max": 13
+    "median": 9.4,
+    "p95": 12,
+    "max": 12.4
   },
   "scrollFrameMs": {
     "n": 119,
     "median": 4.2,
     "p95": 4.3,
-    "max": 8.4,
+    "max": 8.3,
     "droppedOver33ms": 0,
     "frames": 119
   },
   "idle": {
     "windowSeconds": 30,
-    "backendCpuPercentOfOneCore": 2.18,
-    "backendWorkingSetMB": 77.5,
-    "webview2WorkingSetMB": 387.7
+    "backendCpuPercentOfOneCore": 1.22,
+    "backendWorkingSetMB": 44.6,
+    "webview2WorkingSetMB": 387.4
   },
   "stability": {
     "seconds": 60,
     "samples": [
       {
         "t": 0,
-        "backendMB": 76.7,
+        "backendMB": 43.7,
         "webviewMB": 387.4
       },
       {
         "t": 10,
-        "backendMB": 78.3,
-        "webviewMB": 387.8
+        "backendMB": 43.8,
+        "webviewMB": 386.4
       },
       {
         "t": 20,
-        "backendMB": 76.3,
-        "webviewMB": 385
+        "backendMB": 45.4,
+        "webviewMB": 384.4
       },
       {
         "t": 30,
-        "backendMB": 78.1,
-        "webviewMB": 386.2
+        "backendMB": 43.8,
+        "webviewMB": 387.9
       },
       {
         "t": 40,
-        "backendMB": 76.5,
-        "webviewMB": 387.6
+        "backendMB": 43.8,
+        "webviewMB": 392.4
       },
       {
         "t": 50,
-        "backendMB": 76.4,
-        "webviewMB": 385.9
+        "backendMB": 45.6,
+        "webviewMB": 388.9
       }
     ],
-    "backendGrowthMB": -0.3,
-    "webviewGrowthMB": -1.5
+    "backendGrowthMB": 1.9,
+    "webviewGrowthMB": 1.5
   }
 }
