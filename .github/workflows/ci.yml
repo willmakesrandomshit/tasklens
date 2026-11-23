@@ -1,0 +1,45 @@
+name: Windows checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Install dependencies
+        run: npm install
+      - name: Frontend checks
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          node --experimental-strip-types --test tests/*.test.mjs
+          npm run typecheck
+          npm run lint
+          npm test
+      - name: Rust checks
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Build desktop application
+        run: npm run tauri build
+      - name: Upload unsigned build for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: traceback-windows-x64-unverified
+          path: |
+            src-tauri/target/release/traceback.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7
