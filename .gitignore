@@ -9,3 +9,7 @@ src-tauri/gen/
 .DS_Store
 work/
 outputs/
+
+marketing/video/frames/
+marketing/video/output/
+docs/bench-results.tmp
