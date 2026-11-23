@@ -66,7 +66,7 @@ jobs:
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
           } | Set-Content dist-artifacts/SHA256SUMS.txt
           Get-Content dist-artifacts/SHA256SUMS.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tasklens-windows-x64-unsigned
           path: dist-artifacts/*
