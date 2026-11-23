@@ -57,7 +57,7 @@ impl fmt::Display for TerminateError {
                 f,
                 "The process with this PID is no longer the one you selected (the PID was reused). Nothing was ended."
             ),
-            Self::SelfProcess => write!(f, "Traceback will not end itself."),
+            Self::SelfProcess => write!(f, "TaskLens will not end itself."),
             Self::Protected(why) => write!(f, "Refused: {why}."),
             Self::Os(code) => write!(f, "Windows reported error {code}."),
         }

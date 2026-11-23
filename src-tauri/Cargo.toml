@@ -1,8 +1,8 @@
 [package]
-name = "traceback"
+name = "tasklens"
 version = "0.1.0"
 description = "A transparent Windows system monitor"
-authors = ["Traceback contributors"]
+authors = ["TaskLens contributors"]
 license = "MIT"
 edition = "2021"
 

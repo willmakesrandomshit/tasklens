@@ -1,6 +1,6 @@
 # Architecture
 
-Traceback uses a Tauri desktop shell with a Rust backend and a React/TypeScript frontend. The native backend owns access to operating-system APIs and validates all inputs; the frontend presents snapshots and sends narrowly scoped user commands. Ordinary monitoring should not require elevation.
+TaskLens uses a Tauri desktop shell with a Rust backend and a React/TypeScript frontend. The native backend owns access to operating-system APIs and validates all inputs; the frontend presents snapshots and sends narrowly scoped user commands. Ordinary monitoring should not require elevation.
 
 System data can be unavailable due to platform limitations, permissions, process exit, or unsupported hardware. Represent these states explicitly rather than fabricating values. Sampling intervals and history must be bounded. Collect expensive per-process details only when requested.
 

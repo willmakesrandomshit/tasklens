@@ -1,12 +1,17 @@
-# Traceback
+# TaskLens
+
+> Your system. Every process. Total control.
+
+Maintainers: [@willmakesrandomshit](https://github.com/willmakesrandomshit) and [@mynameisjapan26-hue](https://github.com/mynameisjapan26-hue). Development pre-releases are unsigned and not yet suitable as a daily Task Manager replacement.
+
 
 **Your system. Every process. Total control.**
 
-Traceback is an open-source Windows system-monitoring application under development, built with Rust, Tauri 2, React and TypeScript. It aims to provide a fast, understandable view of the processes and resources on your PC. This repository is an early development build; it is not yet a complete replacement for Windows Task Manager.
+TaskLens is an open-source Windows system-monitoring application under development, built with Rust, Tauri 2, React and TypeScript. It aims to provide a fast, understandable view of the processes and resources on your PC. This repository is an early development build; it is not yet a complete replacement for Windows Task Manager.
 
 ## Project status
 
-Traceback is in active development. Consult the running application and [CHANGELOG.md](CHANGELOG.md) for currently implemented functionality. Windows services and startup management, persistent resource history, advanced GPU metrics, release packages, accessibility coverage and performance targets require verification before they can be advertised as complete. Unavailable readings should be displayed as unavailable rather than estimated or invented.
+TaskLens is in active development. Consult the running application and [CHANGELOG.md](CHANGELOG.md) for currently implemented functionality. Windows services and startup management, persistent resource history, advanced GPU metrics, release packages, accessibility coverage and performance targets require verification before they can be advertised as complete. Unavailable readings should be displayed as unavailable rather than estimated or invented.
 
 There are currently no verified screenshots, release downloads or performance measurements to show here. Release builds should be clearly marked as unsigned unless signing has actually been performed.
 

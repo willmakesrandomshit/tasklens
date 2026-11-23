@@ -18,12 +18,19 @@ Network/DNS to the npm and crates.io registries works now (the earlier DNS failu
 | Handle-bound process identity + safe terminate (`src-tauri/src/identity.rs`) | 6 Rust tests pass, repeated 5x |
 | Frontend typecheck, ESLint, Vitest (4 tests), production Vite build | all pass |
 
-## Implemented but NOT yet runtime-verified
+| Release build + NSIS installer produced (unsigned) | `tauri build`, installer 1.78 MiB |
+| App launches; real process/CPU/memory data shown; navigation; live updates | scripted UI smoke test, 10/10 (see TEST_RESULTS.md) |
+| End process through the UI on a harmless `ping` child, with confirmation | same smoke test |
 
-- Process list (name, PID, CPU, memory, status), search, sort, virtualized rows, inspector pane, CPU/memory graphs, theme and refresh settings.
-  These exist in source; the desktop app has not been observed running by an automated check yet.
-- "End process" is now wired to the identity-checked backend command. It has unit/integration tests against harmless
-  `ping` child processes, but has not been exercised through the UI.
+## Implemented, only partly verified
+
+- Search, sort, virtualized rows, theme and refresh settings exist in source; search was exercised by the smoke test,
+  the others have only typecheck/lint coverage.
+- The installer was built but has NOT been installed or run.
+
+## Project name
+
+Renamed from "Traceback" to **TaskLens** (repo `willmakesrandomshit/tasklens`) on 2026-11-23 at the owner's request.
 
 ## Not implemented
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve Traceback. Open an issue to discuss substantial changes before implementing them. Small fixes and documentation improvements are welcome.
+Thank you for helping improve TaskLens. Open an issue to discuss substantial changes before implementing them. Small fixes and documentation improvements are welcome.
 
 1. Fork the repository and create a focused branch.
 2. Build and test on Windows using the instructions in the README.

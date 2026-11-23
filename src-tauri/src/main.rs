@@ -97,5 +97,5 @@ fn main() {
         .manage(Monitor(Mutex::new(System::new_all())))
         .invoke_handler(tauri::generate_handler![snapshot, terminate_process])
         .run(tauri::generate_context!())
-        .expect("Failed to run Traceback");
+        .expect("Failed to run TaskLens");
 }
