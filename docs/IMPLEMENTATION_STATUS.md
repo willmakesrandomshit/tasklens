@@ -22,6 +22,9 @@ Network/DNS to the npm and crates.io registries works now (the earlier DNS failu
 | App launches; real process/CPU/memory data shown; navigation; live updates | scripted UI smoke test, 10/10 (see TEST_RESULTS.md) |
 | End process through the UI on a harmless `ping` child, with confirmation | same smoke test |
 
+| Per-core CPU, memory/page file, disk volumes + throughput, network adapters + throughput | smoke test 15/15 |
+| Process tree view (parent-PID-reuse safe) | 5 Vitest tests + smoke test |
+
 ## Implemented, only partly verified
 
 - Search, sort, virtualized rows, theme and refresh settings exist in source; search was exercised by the smoke test,

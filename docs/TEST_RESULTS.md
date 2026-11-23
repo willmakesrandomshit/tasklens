@@ -28,6 +28,23 @@ backend CPU 1.56% of one core, backend working set 36.7 MB, WebView2 processes w
 This is ABOVE the <1% CPU target and the <100 MB target; optimization is outstanding.
 The test script is not committed yet.
 
+## Runtime smoke test, TaskLens build with per-core/disk/network/tree (2026-11-23)
+
+`node tests/e2e/smoke.mjs src-tauri/target/release/tasklens.exe` — 15/15 checks passed: everything above, plus
+per-core CPU bars equal to the logical processor count (12), disk volume and network adapter tables populated with
+live rates, tree view collapses 374 processes to 53 roots and expanding a node reveals children, and a UI kill of a
+harmless `ping` child.
+
+Idle measurement (one 10 s sample, 2 s refresh, machine at ~80% CPU from other work, not a benchmark):
+backend 2.19% of one core, backend working set 37.2 MB, WebView2 processes 375.6 MB. Still ABOVE the <1% CPU and
+<100 MB targets. Optimization is outstanding (per-process handle opens each poll are the first suspect).
+
+Test-harness note: earlier runs flipped the app to the Performance page by themselves. Cause not proven; the window is
+real and visible, so a human click is the likely explanation. The script now navigates explicitly before each phase.
+
+Observed limitations: virtual adapters (WiFi filter drivers) repeat the physical adapter's counters, and per-volume
+disk rates come from sysinfo, not PDH active-time counters.
+
 ## What the Rust tests cover
 
 `identity::tests` spawn harmless `ping -n 120 127.0.0.1` children (never system processes):

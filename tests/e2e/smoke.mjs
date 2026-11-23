@@ -1,6 +1,7 @@
 // Usage: node tests/e2e/smoke.mjs src-tauri/target/release/tasklens.exe
 // E2E smoke test: launches the packaged exe with WebView2 remote debugging and drives the real UI.
 import { spawn, execFileSync } from 'node:child_process';
+import os from 'node:os';
 
 const exe = process.argv[2];
 const port = 9333;
@@ -46,6 +47,14 @@ const waitFor = async (expr, what, ms = 20000) => {
   throw new Error('timeout waiting for ' + what);
 };
 
+// The window is real and visible, so a human (or anything else) clicking it can change the page mid-run.
+// Always navigate explicitly before relying on a page.
+const goto = async (name, ready) => {
+  await ev(`[...document.querySelectorAll('.nav-item')].find(b => b.innerText.includes('${name}')).click()`);
+  await waitFor(ready, `${name} page`);
+};
+const gotoProcesses = () => goto('Processes', `document.querySelectorAll('.process-row').length > 0`);
+
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok }); log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
 
@@ -62,6 +71,7 @@ try {
   await sleep(5000);
   const t2 = await ev(`document.querySelector('.top-time').innerText`);
   check('live updates (timestamp advances)', t1 !== t2, `${t1} -> ${t2}`);
+  await gotoProcesses();
   const memPct = await ev(`document.querySelectorAll('.summary-strip strong')[1].innerText`);
   check('memory % is a real number', /^\d+(\.\d)?%$/.test(memPct), memPct);
 
@@ -69,15 +79,36 @@ try {
   await ev(`[...document.querySelectorAll('.nav-item')].find(b => b.innerText.includes('Performance')).click()`);
   await waitFor(`document.querySelector('.performance-page')`, 'performance page');
   const cpuMeta = await ev(`document.querySelector('.metric-meta').innerText.replace(/\\n+/g,' | ')`);
-  check('performance page shows CPU model/cores', /logical processors/.test(cpuMeta), cpuMeta);
+  check('performance page shows CPU model/cores', /\d+ logical/.test(cpuMeta), cpuMeta);
+  const coreCount = await ev(`document.querySelectorAll('.core').length`);
+  check('per-core CPU bars match logical processors', coreCount === os.cpus().length, `${coreCount} vs ${os.cpus().length}`);
+  await sleep(3000); // let a second sample provide rates
+  const disks = await ev(`[...document.querySelectorAll('.performance-page .mini-table')][0].innerText.replace(/\\s+/g,' ')`);
+  const nets = await ev(`[...document.querySelectorAll('.performance-page .mini-table')][1].innerText.replace(/\\s+/g,' ')`);
+  log('disks:', disks); log('adapters:', nets);
+  check('disk volumes listed', (await ev(`document.querySelectorAll('.performance-page .mini-table')[0].querySelectorAll('tbody tr').length`)) > 0);
+  check('network adapters listed', (await ev(`document.querySelectorAll('.performance-page .mini-table')[1].querySelectorAll('tbody tr').length`)) > 0);
   await ev(`[...document.querySelectorAll('.nav-item')].find(b => b.innerText.includes('Processes')).click()`);
   await waitFor(`document.querySelectorAll('.process-row').length > 0`, 'rows back');
+
+  // process tree
+  const flat = Number(await ev(`document.querySelector('.table-toolbar .muted').innerText.match(/\\d+/)[0]`));
+  await ev(`[...document.querySelectorAll('.table-toolbar button')].find(b => b.innerText.includes('Tree view')).click()`);
+  await waitFor(`document.querySelectorAll('.tree-toggle[role=button]').length > 0`, 'tree toggles');
+  const roots = Number(await ev(`document.querySelector('.table-toolbar .muted').innerText.match(/\\d+/)[0]`));
+  check('tree view collapses to fewer root rows', roots < flat, `${roots} roots vs ${flat} flat`);
+  await ev(`document.querySelector('.tree-toggle[role=button]').click()`);
+  await sleep(300);
+  const expandedCount = Number(await ev(`document.querySelector('.table-toolbar .muted').innerText.match(/\\d+/)[0]`));
+  check('expanding a node reveals its children', expandedCount > roots, `${roots} -> ${expandedCount}`);
+  await ev(`[...document.querySelectorAll('.table-toolbar button')].find(b => b.innerText.includes('Tree view')).click()`);
 
   // UI kill of a harmless child
   victim = spawn('ping', ['-n', '300', '127.0.0.1'], { stdio: 'ignore' });
   const pid = victim.pid; log('victim pid', pid);
   let exited = false; victim.on('exit', () => { exited = true; });
   await sleep(2500); // let a snapshot include it
+  await gotoProcesses();
   await ev(`(() => { const i = document.querySelector('input[aria-label="Search processes"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'ping.exe'); i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await waitFor(`[...document.querySelectorAll('.process-row')].some(r => r.children[1].innerText === '${pid}')`, 'victim row');
   await ev(`[...document.querySelectorAll('.process-row')].find(r => r.children[1].innerText === '${pid}').click()`);
@@ -106,6 +137,7 @@ try {
   log(`IDLE: backend CPU over 10s = ${(((cpu1 - cpu0) / 10) * 100).toFixed(2)}% of one core; backend WS = ${ws} MB; webview2 procs WS sum = ${wv} MB`);
 } catch (e) {
   check('script completed', false, String(e));
+  try { log('page text at failure:', (await ev('document.body.innerText.slice(0,400)')).split('\n').join(' | ')); } catch { /* page gone */ }
 } finally {
   cleanup();
   const failed = results.filter(r => !r.ok).length;
