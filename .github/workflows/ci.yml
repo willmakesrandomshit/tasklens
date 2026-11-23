@@ -18,11 +18,10 @@ jobs:
         with:
           components: clippy, rustfmt
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Frontend checks
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          node --experimental-strip-types --test tests/*.test.mjs
           npm run typecheck
           npm run lint
           npm test

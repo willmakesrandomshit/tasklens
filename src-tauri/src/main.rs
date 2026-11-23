@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod identity;
+
 use serde::Serialize;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -51,7 +53,7 @@ fn snapshot(monitor: State<'_, Monitor>) -> Result<Snapshot, String> {
             memory: p.memory(),
             status: format!("{:?}", p.status()),
             start_time: p.start_time(),
-            identity: None,
+            identity: identity::identity_of(pid.as_u32()),
             exe: p.exe().map(|path| path.to_string_lossy().into_owned()),
             command: p
                 .cmd()
@@ -79,11 +81,15 @@ fn snapshot(monitor: State<'_, Monitor>) -> Result<Snapshot, String> {
     })
 }
 
-// Disabled until process metadata and exact creation identity can be bound to
-// the same Windows handle and the action is verified with harmless processes.
+/// Ends one process. `identity` is the creation-time token from the snapshot; it
+/// is verified against the live process on the same handle that is terminated,
+/// so a recycled PID can never cause the wrong process to be ended.
 #[tauri::command]
-fn terminate_process(_pid: u32, _identity: String) -> Result<(), String> {
-    Err("Process termination is not yet available".into())
+fn terminate_process(pid: u32, identity: Option<String>) -> Result<(), String> {
+    let identity = identity.ok_or_else(|| {
+        "This process's identity could not be read, so it cannot be ended safely.".to_string()
+    })?;
+    identity::terminate(pid, &identity).map_err(|e| e.to_string())
 }
 
 fn main() {
