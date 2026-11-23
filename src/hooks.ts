@@ -23,9 +23,8 @@ export function recordSnapshot(h: MetricHistory, s: Snapshot) {
   push(h.gpu, s.gpu.supported ? Math.max(0, ...s.gpu.live.map(g => g.percent)) : null);
   const disks = s.perf.physical_disks.filter(d => d.active_percent !== null);
   push(h.diskActive, disks.length ? Math.max(...disks.map(d => d.active_percent as number)) : null);
-  const phys = s.perf.physical_disks.length > 0;
-  push(h.diskRead, phys ? sum(s.perf.physical_disks.map(d => d.read_per_s)) : sum(s.disks.map(d => d.read_per_s)));
-  push(h.diskWrite, phys ? sum(s.perf.physical_disks.map(d => d.write_per_s)) : sum(s.disks.map(d => d.write_per_s)));
+  push(h.diskRead, sum(s.perf.physical_disks.map(d => d.read_per_s)));
+  push(h.diskWrite, sum(s.perf.physical_disks.map(d => d.write_per_s)));
   // Only adapters that own a routable address count; filter drivers repeat the physical adapter's traffic.
   const routable = s.networks.filter(n => n.addresses.some(a => !/^(fe80|169\.254|127\.|::1)/.test(a)));
   const nets = routable.length ? routable : s.networks.slice(0, 1);

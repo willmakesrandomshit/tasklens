@@ -45,10 +45,10 @@ const report = {
 };
 
 // cold start = fresh WebView2 profile; warm = profile and files already cached
-fs.rmSync(profile, { recursive: true, force: true });
+try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* leftover from an earlier run; reuse it */ }
 let run = await launch();
 report.coldStartMs = Math.round(run.startupMs);
-run.app.kill(); await sleep(2000);
+run.app.kill(); await sleep(4000);
 run = await launch();
 report.warmStartMs = Math.round(run.startupMs);
 const { ev, app } = run;
@@ -95,7 +95,8 @@ const series = [];
 for (let s = 0; s < stabilitySecs; s += 10) { series.push({ t: s, backendMB: wsOf(), webviewMB: wv() }); await sleep(10000); }
 report.stability = { seconds: stabilitySecs, samples: series, backendGrowthMB: +(series[series.length - 1].backendMB - series[0].backendMB).toFixed(1), webviewGrowthMB: +(series[series.length - 1].webviewMB - series[0].webviewMB).toFixed(1) };
 
-app.kill();
-fs.rmSync(profile, { recursive: true, force: true });
 console.log(JSON.stringify(report, null, 2));
+app.kill();
+await sleep(3000);
+try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* WebView2 may still be releasing files; the temp folder is harmless */ }
 process.exit(0);

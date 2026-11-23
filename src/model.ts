@@ -9,7 +9,6 @@ export interface ProcessInfo {
 }
 export interface DiskInfo {
   name: string; mount: string; file_system: string; total: number; available: number;
-  read_per_s: number | null; write_per_s: number | null;
 }
 export interface NetworkInfo {
   name: string; received_per_s: number | null; transmitted_per_s: number | null;

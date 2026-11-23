@@ -32,6 +32,10 @@ pub struct Collector {
     io_prev: HashMap<String, (u64, u64)>,
     gpu_adapters: Vec<gpu::GpuAdapterInfo>,
     net_adapters: (Option<Instant>, Vec<AdapterInfo>),
+    disks_at: Option<Instant>,
+    /// Thread counts and parent PIDs from Toolhelp, refreshed every 5 s.
+    threads: HashMap<u32, (u32, u32)>,
+    threads_at: Option<Instant>,
 }
 
 #[derive(Serialize)]
@@ -67,8 +71,6 @@ pub struct DiskInfo {
     file_system: String,
     total: u64,
     available: u64,
-    read_per_s: Option<f64>,
-    write_per_s: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -135,6 +137,9 @@ pub fn new_collector() -> Collector {
         io_prev: HashMap::new(),
         gpu_adapters: gpu::adapters(),
         net_adapters: (None, Vec::new()),
+        disks_at: None,
+        threads: HashMap::new(),
+        threads_at: None,
     }
 }
 
@@ -158,11 +163,24 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
     c.system.refresh_memory();
     c.system
         .refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh_kind());
-    c.disks.refresh(true);
+    // Volume capacity and the thread table change slowly and cost ~4 ms and ~6 ms to read, so they are
+    // refreshed every 10 s and 5 s respectively instead of on every snapshot (measured, see docs).
+    if c.disks_at
+        .is_none_or(|t| now.duration_since(t).as_secs() >= 10)
+    {
+        c.disks.refresh(true);
+        c.disks_at = Some(now);
+    }
     c.networks.refresh(true);
     let (gpu_snapshot, gpu_per_pid) = c.gpu.sample();
     let perf = c.perf.sample();
-    let table = procinfo::process_table();
+    if c.threads_at
+        .is_none_or(|t| now.duration_since(t).as_secs() >= 5)
+    {
+        c.threads = procinfo::process_table();
+        c.threads_at = Some(now);
+    }
+    let table = std::mem::take(&mut c.threads);
     // Adapter facts change rarely; refresh them every 10 seconds.
     if c.net_adapters
         .0
@@ -236,23 +254,19 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
         });
     }
     c.io_prev = next_io;
+    c.threads = table;
     c.users.retain(|k, _| live_keys.contains(k));
 
     let disks = c
         .disks
         .list()
         .iter()
-        .map(|d| {
-            let usage = d.usage();
-            DiskInfo {
-                name: d.name().to_string_lossy().into_owned(),
-                mount: d.mount_point().to_string_lossy().into_owned(),
-                file_system: d.file_system().to_string_lossy().into_owned(),
-                total: d.total_space(),
-                available: d.available_space(),
-                read_per_s: per_second(usage.read_bytes, elapsed),
-                write_per_s: per_second(usage.written_bytes, elapsed),
-            }
+        .map(|d| DiskInfo {
+            name: d.name().to_string_lossy().into_owned(),
+            mount: d.mount_point().to_string_lossy().into_owned(),
+            file_system: d.file_system().to_string_lossy().into_owned(),
+            total: d.total_space(),
+            available: d.available_space(),
         })
         .collect();
 
@@ -344,28 +358,19 @@ pub fn net_totals(networks: &[NetworkInfo]) -> (f64, f64) {
 impl Snapshot {
     pub fn to_sample(&self) -> crate::history::Sample {
         let (rx, tx) = net_totals(&self.networks);
-        let (read, write) = if self.perf.physical_disks.is_empty() {
-            (
-                self.disks.iter().map(|d| d.read_per_s.unwrap_or(0.0)).sum(),
-                self.disks
-                    .iter()
-                    .map(|d| d.write_per_s.unwrap_or(0.0))
-                    .sum(),
-            )
-        } else {
-            (
-                self.perf
-                    .physical_disks
-                    .iter()
-                    .map(|d| d.read_per_s.unwrap_or(0.0))
-                    .sum(),
-                self.perf
-                    .physical_disks
-                    .iter()
-                    .map(|d| d.write_per_s.unwrap_or(0.0))
-                    .sum(),
-            )
-        };
+        // Throughput comes from the physical-disk counters (the supported source for real disk traffic).
+        let read: f64 = self
+            .perf
+            .physical_disks
+            .iter()
+            .map(|d| d.read_per_s.unwrap_or(0.0))
+            .sum();
+        let write: f64 = self
+            .perf
+            .physical_disks
+            .iter()
+            .map(|d| d.write_per_s.unwrap_or(0.0))
+            .sum();
         crate::history::Sample {
             ts: self.timestamp as i64,
             cpu: f64::from(self.cpu_usage),
@@ -514,5 +519,97 @@ mod tests {
             "collect_ms {}",
             s.collect_ms
         );
+    }
+    /// Prints where one snapshot spends its time. Run with:
+    /// cargo test --release profile_phases -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn profile_phases() {
+        let mut c = new_collector();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let _ = take_snapshot(&mut c);
+        let n = 20;
+        let mut t = [0f64; 8];
+        for _ in 0..n {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            let mut lap = Instant::now();
+            let mut mark = |slot: usize, lap: &mut Instant| {
+                t[slot] += lap.elapsed().as_secs_f64() * 1000.0;
+                *lap = Instant::now();
+            };
+            c.system.refresh_cpu_all();
+            c.system.refresh_memory();
+            mark(0, &mut lap);
+            c.system.refresh_processes_specifics(
+                ProcessesToUpdate::All,
+                true,
+                process_refresh_kind(),
+            );
+            mark(1, &mut lap);
+            c.disks.refresh(true);
+            c.networks.refresh(true);
+            mark(2, &mut lap);
+            let _ = c.gpu.sample();
+            mark(3, &mut lap);
+            let _ = c.perf.sample();
+            mark(4, &mut lap);
+            let _ = procinfo::process_table();
+            mark(5, &mut lap);
+            for pid in c.system.processes().keys() {
+                if let Some((h, _)) = identity::open_for_query(pid.as_u32()) {
+                    let _ = procinfo::read_extra(&h);
+                }
+            }
+            mark(6, &mut lap);
+            let _ = memory_detail();
+            mark(7, &mut lap);
+        }
+        // Which sysinfo process options cost the most?
+        for (label, kind) in [
+            (
+                "sysinfo: list only (exe+cmd cached)",
+                ProcessRefreshKind::nothing()
+                    .with_exe(UpdateKind::OnlyIfNotSet)
+                    .with_cmd(UpdateKind::OnlyIfNotSet),
+            ),
+            (
+                "sysinfo: + cpu",
+                ProcessRefreshKind::nothing()
+                    .with_cpu()
+                    .with_exe(UpdateKind::OnlyIfNotSet)
+                    .with_cmd(UpdateKind::OnlyIfNotSet),
+            ),
+            (
+                "sysinfo: + memory",
+                ProcessRefreshKind::nothing()
+                    .with_memory()
+                    .with_exe(UpdateKind::OnlyIfNotSet)
+                    .with_cmd(UpdateKind::OnlyIfNotSet),
+            ),
+            ("sysinfo: + cpu + memory (current)", process_refresh_kind()),
+        ] {
+            let mut total = 0.0;
+            for _ in 0..n {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                let s = Instant::now();
+                c.system
+                    .refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
+                total += s.elapsed().as_secs_f64() * 1000.0;
+            }
+            println!("{label:<38} {:>7.2} ms", total / n as f64);
+        }
+        let names = [
+            "cpu+mem refresh",
+            "process refresh (sysinfo)",
+            "disks+networks refresh",
+            "GPU PDH",
+            "disk/memory PDH",
+            "toolhelp table",
+            "per-process handle queries",
+            "memory detail",
+        ];
+        for (i, n_) in names.iter().enumerate() {
+            println!("{:<30} {:>7.2} ms", n_, t[i] / n as f64);
+        }
     }
 }

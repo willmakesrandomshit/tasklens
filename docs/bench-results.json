@@ -1,0 +1,89 @@
+﻿{
+  "machine": {
+    "cpu": "AMD Ryzen 5 9600X 6-Core Processor",
+    "logicalCpus": 12,
+    "ramGB": 31.1,
+    "windows": "Microsoft Windows 11 Pro build 26200"
+  },
+  "build": "release (LTO), unsigned",
+  "refreshIntervalMs": 2000,
+  "date": "2026-11-23T04:10:03.939Z",
+  "coldStartMs": 752,
+  "warmStartMs": 764,
+  "processCount": "357 processes",
+  "collectionMs": {
+    "n": 15,
+    "median": 26.41,
+    "p95": 28.21,
+    "max": 28.21
+  },
+  "snapshotIpcMs": {
+    "n": 30,
+    "median": 3.2,
+    "p95": 4.2,
+    "max": 4.5
+  },
+  "searchLatencyMs": {
+    "n": 24,
+    "median": 7.6,
+    "p95": 15.4,
+    "max": 16.1
+  },
+  "sortLatencyMs": {
+    "n": 24,
+    "median": 9.2,
+    "p95": 11.7,
+    "max": 13
+  },
+  "scrollFrameMs": {
+    "n": 119,
+    "median": 4.2,
+    "p95": 4.3,
+    "max": 8.4,
+    "droppedOver33ms": 0,
+    "frames": 119
+  },
+  "idle": {
+    "windowSeconds": 30,
+    "backendCpuPercentOfOneCore": 2.18,
+    "backendWorkingSetMB": 77.5,
+    "webview2WorkingSetMB": 387.7
+  },
+  "stability": {
+    "seconds": 60,
+    "samples": [
+      {
+        "t": 0,
+        "backendMB": 76.7,
+        "webviewMB": 387.4
+      },
+      {
+        "t": 10,
+        "backendMB": 78.3,
+        "webviewMB": 387.8
+      },
+      {
+        "t": 20,
+        "backendMB": 76.3,
+        "webviewMB": 385
+      },
+      {
+        "t": 30,
+        "backendMB": 78.1,
+        "webviewMB": 386.2
+      },
+      {
+        "t": 40,
+        "backendMB": 76.5,
+        "webviewMB": 387.6
+      },
+      {
+        "t": 50,
+        "backendMB": 76.4,
+        "webviewMB": 385.9
+      }
+    ],
+    "backendGrowthMB": -0.3,
+    "webviewGrowthMB": -1.5
+  }
+}
