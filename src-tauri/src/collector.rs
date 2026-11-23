@@ -290,6 +290,133 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
     }
 }
 
+/// Network totals without double counting: virtual filter adapters repeat the physical adapter's
+/// counters, so only adapters that own a routable address are summed (falling back to the busiest one).
+pub fn net_totals(networks: &[NetworkInfo]) -> (f64, f64) {
+    let routable = |n: &&NetworkInfo| {
+        n.addresses.iter().any(|a| {
+            !(a.starts_with("fe80")
+                || a.starts_with("169.254")
+                || a.starts_with("127.")
+                || a == "::1")
+        })
+    };
+    let pick: Vec<&NetworkInfo> = networks.iter().filter(routable).collect();
+    let sum = |list: &[&NetworkInfo]| {
+        list.iter().fold((0.0, 0.0), |(rx, tx), n| {
+            (
+                rx + n.received_per_s.unwrap_or(0.0),
+                tx + n.transmitted_per_s.unwrap_or(0.0),
+            )
+        })
+    };
+    if !pick.is_empty() {
+        return sum(&pick);
+    }
+    networks
+        .iter()
+        .map(|n| {
+            (
+                n.received_per_s.unwrap_or(0.0),
+                n.transmitted_per_s.unwrap_or(0.0),
+            )
+        })
+        .fold((0.0, 0.0), |a, b| (f64::max(a.0, b.0), f64::max(a.1, b.1)))
+}
+
+impl Snapshot {
+    pub fn to_sample(&self) -> crate::history::Sample {
+        let (rx, tx) = net_totals(&self.networks);
+        let (read, write) = if self.perf.physical_disks.is_empty() {
+            (
+                self.disks.iter().map(|d| d.read_per_s.unwrap_or(0.0)).sum(),
+                self.disks
+                    .iter()
+                    .map(|d| d.write_per_s.unwrap_or(0.0))
+                    .sum(),
+            )
+        } else {
+            (
+                self.perf
+                    .physical_disks
+                    .iter()
+                    .map(|d| d.read_per_s.unwrap_or(0.0))
+                    .sum(),
+                self.perf
+                    .physical_disks
+                    .iter()
+                    .map(|d| d.write_per_s.unwrap_or(0.0))
+                    .sum(),
+            )
+        };
+        crate::history::Sample {
+            ts: self.timestamp as i64,
+            cpu: f64::from(self.cpu_usage),
+            mem: if self.total_memory > 0 {
+                self.used_memory as f64 / self.total_memory as f64 * 100.0
+            } else {
+                0.0
+            },
+            gpu: self
+                .gpu
+                .supported
+                .then(|| self.gpu.live.iter().map(|g| g.percent).fold(0.0, f64::max)),
+            disk_active: self
+                .perf
+                .physical_disks
+                .iter()
+                .filter_map(|d| d.active_percent)
+                .reduce(f64::max),
+            disk_read: read,
+            disk_write: write,
+            net_rx: rx,
+            net_tx: tx,
+        }
+    }
+
+    /// Every process as a brief record (used to detect starts and exits between samples).
+    pub fn brief_processes(&self) -> Vec<crate::history::ProcBrief> {
+        self.processes
+            .iter()
+            .map(|p| crate::history::ProcBrief {
+                pid: p.pid,
+                identity: p.identity.clone(),
+                name: p.name.clone(),
+                cpu: p.cpu_usage,
+                mem: p.memory,
+            })
+            .collect()
+    }
+
+    pub fn alert_metrics(&self, exited: Vec<String>) -> crate::alerts::Metrics {
+        let s = self.to_sample();
+        let free_min = self
+            .disks
+            .iter()
+            .filter(|d| d.total > 0)
+            .map(|d| d.available as f64 / d.total as f64 * 100.0)
+            .reduce(f64::min);
+        crate::alerts::Metrics {
+            cpu: s.cpu,
+            memory: s.mem,
+            gpu: s.gpu,
+            disk_active: s.disk_active,
+            disk_free_min: free_min,
+            processes: self
+                .processes
+                .iter()
+                .map(|p| (p.name.to_lowercase(), f64::from(p.cpu_usage)))
+                .collect(),
+            exited,
+        }
+    }
+
+    pub fn tray_text(&self) -> String {
+        let s = self.to_sample();
+        format!("TaskLens - CPU {:.0}%  RAM {:.0}%", s.cpu, s.mem)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,6 +434,31 @@ mod tests {
         assert_eq!(counter_rate(None, 300, Some(2.0)), None);
         assert_eq!(counter_rate(Some(500), 300, Some(2.0)), None);
         assert_eq!(counter_rate(Some(100), 300, None), None);
+    }
+
+    #[test]
+    fn network_totals_ignore_virtual_duplicates() {
+        let n = |name: &str, rx: f64, addr: &str| NetworkInfo {
+            name: name.into(),
+            received_per_s: Some(rx),
+            transmitted_per_s: Some(1.0),
+            total_received: 0,
+            total_transmitted: 0,
+            addresses: if addr.is_empty() {
+                vec![]
+            } else {
+                vec![addr.into()]
+            },
+            mtu: 1500,
+        };
+        let list = vec![
+            n("WiFi", 100.0, "192.168.1.5"),
+            n("WiFi filter", 100.0, ""),
+            n("Ethernet", 0.0, "fe80::1"),
+        ];
+        assert_eq!(net_totals(&list), (100.0, 1.0));
+        let none = vec![n("a", 5.0, ""), n("b", 9.0, "")];
+        assert_eq!(net_totals(&none).0, 9.0);
     }
 
     #[test]

@@ -265,6 +265,36 @@ pub fn set_enabled(id: &str, enabled: bool) -> Result<(), String> {
         .map_err(|e| format!("Could not update the startup entry: {e}"))
 }
 
+const AUTOSTART_NAME: &str = "TaskLens";
+
+pub fn autostart_enabled() -> bool {
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey_with_flags(RUN, KEY_READ)
+        .and_then(|k| k.get_value::<String, _>(AUTOSTART_NAME))
+        .is_ok()
+}
+
+/// Explicit opt-in "start with Windows": one HKCU Run value, removable here or on the Startup page.
+pub fn set_autostart(enabled: bool) -> Result<(), String> {
+    let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey_with_flags(RUN, KEY_SET_VALUE | KEY_READ)
+        .map_err(|e| format!("Could not open the Run key: {e}"))?;
+    if enabled {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        key.set_value(
+            AUTOSTART_NAME,
+            &format!("\"{}\" --minimized", exe.display()),
+        )
+        .map_err(|e| format!("Could not register startup: {e}"))
+    } else {
+        match key.delete_value(AUTOSTART_NAME) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(format!("Could not remove startup: {e}")),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
