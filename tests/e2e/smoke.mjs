@@ -91,6 +91,25 @@ try {
   await ev(`[...document.querySelectorAll('.nav-item')].find(b => b.innerText.includes('Processes')).click()`);
   await waitFor(`document.querySelectorAll('.process-row').length > 0`, 'rows back');
 
+  // management pages
+  await goto('Services', `document.querySelectorAll('.data-table tbody tr').length > 50`);
+  const svcRows = await ev(`document.querySelectorAll('.data-table tbody tr').length`);
+  check('services page lists real services', svcRows > 50, `${svcRows} rows`);
+  await ev(`[...document.querySelectorAll('.data-table tbody tr')].find(r => r.children[1].innerText === 'RpcSs').click()`);
+  await waitFor(`document.querySelector('.detail-panel h2')`, 'service details');
+  const stopState = await ev(`(() => { const b = [...document.querySelectorAll('.detail-panel button')].find(x => x.innerText === 'Stop'); return b.disabled + '|' + b.title; })()`);
+  check('stopping a core Windows service is refused in the UI', stopState.startsWith('true|'), stopState);
+  await goto('Network', `document.querySelectorAll('.data-table tbody tr').length > 0`);
+  const connRows = await ev(`document.querySelectorAll('.data-table tbody tr').length`);
+  const listening = await ev(`[...document.querySelectorAll('.data-table tbody tr')].some(r => r.children[5].innerText === 'Listen')`);
+  check('network page lists connections incl. listeners', connRows > 0 && listening, `${connRows} rows`);
+  const named = await ev(`[...document.querySelectorAll('.data-table tbody tr')].some(r => !r.children[0].innerText.startsWith('Unknown'))`);
+  check('connections are matched to process names', named);
+  await goto('Startup', `document.querySelector('.data-table') && !document.body.innerText.includes('Reading startup entries')`);
+  const startupText = await ev(`document.querySelector('.count-pill').innerText`);
+  check('startup page loads entries without error', !(await ev(`!!document.querySelector('.error-banner')`)), startupText);
+  await gotoProcesses();
+
   // process tree
   const flat = Number(await ev(`document.querySelector('.table-toolbar .muted').innerText.match(/\\d+/)[0]`));
   await ev(`[...document.querySelectorAll('.table-toolbar button')].find(b => b.innerText.includes('Tree view')).click()`);

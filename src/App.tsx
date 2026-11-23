@@ -1,15 +1,18 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Activity, ArrowDown, ArrowUp, ChartNoAxesCombined, ChevronRight, CircleHelp, Clock3, Cpu, List, MonitorCog, Network, Search, Settings, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, ChartNoAxesCombined, ChevronRight, CircleHelp, Clock3, Cpu, List, MonitorCog, Network, Search, Server, Settings, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildTreeRows, bytes, percent, procKey, selectProcesses, type ProcessInfo, type Snapshot, type SortKey } from './model';
 import { emptyHistory, Performance, type History } from './Performance';
+import { Connections } from './Connections';
+import { Services } from './Services';
+import { Startup } from './Startup';
 import { visibleRange } from './viewport';
 
 type Page = 'Processes' | 'Performance' | 'Startup' | 'Services' | 'Network' | 'History' | 'Settings';
 type Theme = 'system' | 'dark' | 'light';
 const navigation: { name: Page; icon: typeof List }[] = [
   { name: 'Processes', icon: List }, { name: 'Performance', icon: Activity },
-  { name: 'Startup', icon: MonitorCog }, { name: 'Services', icon: Settings },
+  { name: 'Startup', icon: MonitorCog }, { name: 'Services', icon: Server },
   { name: 'Network', icon: Network }, { name: 'History', icon: Clock3 }, { name: 'Settings', icon: Settings },
 ];
 const ROW_HEIGHT = 38;
@@ -118,7 +121,10 @@ export default function App() {
       </section>}
       {page === 'Performance' && <Performance snapshot={snapshot} history={history} />}
       {page === 'Settings' && <section className="page settings-page"><div className="page-heading"><div><div className="eyebrow">PERSONALIZATION</div><h1>Settings</h1><p>Make TaskLens work for you.</p></div></div><div className="settings-block"><h2>Appearance</h2><div className="setting-row"><div><strong>Theme</strong><p>Choose how the application looks.</p></div><select value={theme} onChange={e => setTheme(e.target.value as Theme)} aria-label="Theme"><option value="system">Use system setting</option><option value="dark">Dark</option><option value="light">Light</option></select></div></div><div className="settings-block"><h2>Monitoring</h2><div className="setting-row"><div><strong>Refresh interval</strong><p>How often process and system data updates.</p></div><select value={interval} onChange={e => setIntervalValue(e.target.value)} aria-label="Refresh interval"><option value="1000">1 second</option><option value="2000">2 seconds</option><option value="5000">5 seconds</option></select></div></div><div className="settings-block"><h2>Privacy</h2><p>Preferences are stored on this device. Live readings remain local.</p></div></section>}
-      {['Startup', 'Services', 'Network', 'History'].includes(page) && <section className="page"><div className="page-heading"><div><div className="eyebrow">WORKSPACE</div><h1>{page}</h1><p>This section is not implemented yet.</p></div></div><div className="empty-panel"><CircleHelp size={24}/><strong>{page} is unavailable</strong><p>There is no collector or management functionality behind this section yet.</p></div></section>}
+      {page === 'Startup' && <Startup active />}
+      {page === 'Services' && <Services active />}
+      {page === 'Network' && <Connections active snapshot={snapshot} />}
+      {['History'].includes(page) && <section className="page"><div className="page-heading"><div><div className="eyebrow">WORKSPACE</div><h1>{page}</h1><p>This section is not implemented yet.</p></div></div><div className="empty-panel"><CircleHelp size={24}/><strong>{page} is unavailable</strong><p>There is no collector or management functionality behind this section yet.</p></div></section>}
     </main>
     {selected && page === 'Processes' && <aside className="inspector"><div className="inspector-head"><span>PROCESS DETAILS</span><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close process details"><X size={16}/></button></div>{current ? <><div className="inspector-title"><div className="process-icon large">{current.name[0]?.toUpperCase() || '?'}</div><div><h2>{current.name}</h2><p>PID {current.pid}</p></div></div><div className="inspector-stats"><div><span>CPU</span><strong>{percent(current.cpu_usage)}</strong></div><div><span>MEMORY</span><strong>{bytes(current.memory)}</strong></div></div><div className="detail-list"><div><span>Status</span><strong>{current.status}</strong></div><div><span>Parent PID</span><strong>{current.parent_pid ?? 'Unavailable'}</strong></div><div><span>Started</span><strong>{current.start_time ? new Date(current.start_time * 1000).toLocaleString() : 'Unavailable'}</strong></div><div className="detail-long"><span>Executable</span><strong>{current.exe || 'Unavailable'}</strong></div><div className="detail-long"><span>Command line</span><strong>{current.command || 'Unavailable'}</strong></div></div><button className="danger-button" disabled={!current.identity} title={current.identity ? 'End this process' : 'Windows did not allow TaskLens to read this process, so it cannot be ended safely'} onClick={() => { setActionError(null); setConfirm(current); }}>End process</button><p className="inspector-note">Ending a process is tied to its exact creation time, so a recycled PID is never ended by mistake. Protected and critical Windows processes are refused. Some details may be unavailable due to Windows permissions.</p></> : <div className="empty">This process has exited or is no longer available.</div>}</aside>}
     {confirm && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="eyebrow">CONFIRM ACTION</div><h2 id="modal-title">End {confirm.name}?</h2><p>Windows will terminate PID {confirm.pid}. Unsaved work in this process may be lost.</p>{actionError && <div className="action-error" role="alert">{actionError}</div>}<div className="modal-actions"><button className="secondary-button" onClick={() => setConfirm(null)} disabled={busy}>Cancel</button><button className="danger-button" onClick={() => void terminate()} disabled={busy}>{busy ? 'Ending…' : 'End process'}</button></div></div></div>}
