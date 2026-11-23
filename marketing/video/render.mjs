@@ -24,7 +24,6 @@ const scenes = [
   { dir: 's5-design', d: 6.5, head: ['Dark. Light. Fast.'], sub: ['Measured: 0.7 s warm start, 7 ms search,', '0 dropped frames while scrolling.'], foot: 'AMD Ryzen 5 9600X, Windows 11. Details: docs/PERFORMANCE_BENCHMARKS.md', cx: 330, cw: 1400, zoom: 1.0 },
 ];
 const END = 6.6;
-const clipLen = i => scenes[i].d + (i < scenes.length ? T : 0);
 const total = scenes.reduce((a, s) => a + s.d, 0) + END - T * scenes.length;
 
 const text = (t, y, size, color = 'white', font = FONT_B, start = 0.15, fade = 0.35) =>
