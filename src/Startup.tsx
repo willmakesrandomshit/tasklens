@@ -4,9 +4,9 @@ import { revealInExplorer, usePolling } from './usePolling';
 
 export interface StartupEntry { id: string; name: string; command: string; path: string | null; source: string; enabled: boolean; scope: string }
 
-export function Startup({ active }: { active: boolean }) {
+export function Startup({ active, search }: { active: boolean; search?: string }) {
   const { data, error, refresh } = usePolling<StartupEntry[]>('list_startup', 10000, active);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(search ?? '');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 

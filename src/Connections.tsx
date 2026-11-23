@@ -8,9 +8,9 @@ export interface Connection {
 }
 type Key = 'process' | 'pid' | 'protocol' | 'local' | 'remote' | 'state';
 
-export function Connections({ active, snapshot }: { active: boolean; snapshot: Snapshot | null }) {
+export function Connections({ active, snapshot, search }: { active: boolean; snapshot: Snapshot | null; search?: string }) {
   const { data, error, refresh } = usePolling<Connection[]>('list_connections', 3000, active);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(search ?? '');
   const [proto, setProto] = useState('All');
   const [state, setState] = useState('All');
   const [sort, setSort] = useState<Key>('process');

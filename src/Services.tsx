@@ -9,9 +9,9 @@ export interface ServiceInfo {
 type Key = 'display_name' | 'name' | 'state' | 'start_type' | 'pid';
 type Action = 'start' | 'stop' | 'restart';
 
-export function Services({ active }: { active: boolean }) {
+export function Services({ active, search }: { active: boolean; search?: string }) {
   const { data, error, refresh } = usePolling<ServiceInfo[]>('list_services', 5000, active);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(search ?? '');
   const [stateFilter, setStateFilter] = useState('All');
   const [sort, setSort] = useState<Key>('display_name');
   const [dir, setDir] = useState<SortDir>('asc');
@@ -24,7 +24,7 @@ export function Services({ active }: { active: boolean }) {
     const needle = query.trim().toLowerCase();
     const filtered = (data ?? []).filter(s =>
       (stateFilter === 'All' || s.state === stateFilter) &&
-      (!needle || `${s.name} ${s.display_name} ${s.description ?? ''}`.toLowerCase().includes(needle)));
+      (!needle || `${s.name} ${s.display_name} ${s.description ?? ''} ${s.pid ?? ''}`.toLowerCase().includes(needle)));
     const sign = dir === 'asc' ? 1 : -1;
     return filtered.sort((a, b) => sign * compareValues(a[sort], b[sort]) || a.name.localeCompare(b.name));
   }, [data, query, stateFilter, sort, dir]);
