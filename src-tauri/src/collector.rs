@@ -1,7 +1,17 @@
-//! Periodic system snapshot: processes, CPU, memory, disks, network adapters.
+//! Periodic system snapshot: processes, CPU, memory, disks, network adapters, GPU.
+//!
+//! CPU percentages: `sysinfo` reports each process's CPU time delta divided by wall-clock time, per
+//! logical processor, then divides by the processor count, so 100% means every logical processor is
+//! fully busy (the same definition Task Manager uses). The first sample after start is 0 because a
+//! delta needs two readings. Rates are `None` until two samples exist so "unknown" is never shown as 0.
 
-use crate::identity;
+use crate::gpu::{GpuSampler, GpuSnapshot};
+use crate::perf::{PerfSampler, PerfSnapshot};
+use crate::procinfo::{self, Extra};
+use crate::system::{memory_detail, MemoryDetail};
+use crate::{gpu, identity};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use sysinfo::{
     CpuRefreshKind, Disks, MemoryRefreshKind, Networks, ProcessRefreshKind, ProcessesToUpdate,
@@ -12,7 +22,14 @@ pub struct Collector {
     system: System,
     disks: Disks,
     networks: Networks,
+    gpu: GpuSampler,
+    perf: PerfSampler,
     last_refresh: Option<Instant>,
+    /// Owner account per `pid:identity`; looked up once because it never changes for a process.
+    users: HashMap<String, Option<String>>,
+    /// Previous cumulative I/O bytes per `pid:identity` for rate calculation.
+    io_prev: HashMap<String, (u64, u64)>,
+    gpu_adapters: Vec<gpu::GpuAdapterInfo>,
 }
 
 #[derive(Serialize)]
@@ -21,12 +38,24 @@ pub struct ProcessInfo {
     parent_pid: Option<u32>,
     name: String,
     cpu_usage: f32,
+    /// Working set (physical memory currently used), bytes.
     memory: u64,
     status: String,
     start_time: u64,
     identity: Option<String>,
     exe: Option<String>,
     command: String,
+    user: Option<String>,
+    thread_count: Option<u32>,
+    #[serde(flatten)]
+    extra: Extra,
+    /// Process-wide I/O rates (all I/O, not only physical disk).
+    io_read_per_s: Option<f64>,
+    io_write_per_s: Option<f64>,
+    /// Peak GPU engine utilisation of this process; `None` when GPU counters are unavailable.
+    gpu_percent: Option<f32>,
+    /// True only for processes TaskLens itself suspended.
+    suspended: bool,
 }
 
 #[derive(Serialize)]
@@ -36,7 +65,6 @@ pub struct DiskInfo {
     file_system: String,
     total: u64,
     available: u64,
-    /// Bytes per second since the previous snapshot; `None` until two samples exist.
     read_per_s: Option<f64>,
     write_per_s: Option<f64>,
 }
@@ -44,7 +72,6 @@ pub struct DiskInfo {
 #[derive(Serialize)]
 pub struct NetworkInfo {
     name: String,
-    /// Bytes per second since the previous snapshot; `None` until two samples exist.
     received_per_s: Option<f64>,
     transmitted_per_s: Option<f64>,
     total_received: u64,
@@ -67,8 +94,12 @@ pub struct Snapshot {
     cpu_model: String,
     logical_cores: usize,
     physical_cores: Option<usize>,
+    memory_detail: MemoryDetail,
     disks: Vec<DiskInfo>,
     networks: Vec<NetworkInfo>,
+    perf: PerfSnapshot,
+    gpu: GpuSnapshot,
+    gpu_adapters: Vec<gpu::GpuAdapterInfo>,
     processes: Vec<ProcessInfo>,
 }
 
@@ -92,12 +123,23 @@ pub fn new_collector() -> Collector {
         system,
         disks: Disks::new_with_refreshed_list(),
         networks: Networks::new_with_refreshed_list(),
+        gpu: GpuSampler::new(),
+        perf: PerfSampler::new(),
         last_refresh: None,
+        users: HashMap::new(),
+        io_prev: HashMap::new(),
+        gpu_adapters: gpu::adapters(),
     }
 }
 
 fn per_second(bytes: u64, elapsed: Option<f64>) -> Option<f64> {
     elapsed.filter(|s| *s > 0.0).map(|s| bytes as f64 / s)
+}
+
+/// Rate from two cumulative counters; `None` if the counter went backwards (wrap or process change).
+pub fn counter_rate(prev: Option<u64>, now: u64, elapsed: Option<f64>) -> Option<f64> {
+    let (prev, secs) = (prev?, elapsed.filter(|s| *s > 0.0)?);
+    now.checked_sub(prev).map(|d| d as f64 / secs)
 }
 
 pub fn take_snapshot(c: &mut Collector) -> Snapshot {
@@ -111,20 +153,56 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
         .refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh_kind());
     c.disks.refresh(true);
     c.networks.refresh(true);
+    let (gpu_snapshot, gpu_per_pid) = c.gpu.sample();
+    let perf = c.perf.sample();
+    let table = procinfo::process_table();
 
-    let processes = c
-        .system
-        .processes()
-        .iter()
-        .map(|(pid, p)| ProcessInfo {
-            pid: pid.as_u32(),
+    let mut next_io: HashMap<String, (u64, u64)> = HashMap::new();
+    let mut live_keys: Vec<String> = Vec::new();
+    let mut processes = Vec::with_capacity(c.system.processes().len());
+    for (pid, p) in c.system.processes() {
+        let pid = pid.as_u32();
+        let (identity, extra, user, io_rates) = match identity::open_for_query(pid) {
+            Some((handle, id)) => {
+                let key = format!("{pid}:{id}");
+                let extra = procinfo::read_extra(&handle);
+                let user = c
+                    .users
+                    .entry(key.clone())
+                    .or_insert_with(|| procinfo::user_of(&handle))
+                    .clone();
+                let rates = match (extra.io_read_bytes, extra.io_write_bytes) {
+                    (Some(r), Some(w)) => {
+                        let prev = c.io_prev.get(&key).copied();
+                        next_io.insert(key.clone(), (r, w));
+                        (
+                            counter_rate(prev.map(|p| p.0), r, elapsed),
+                            counter_rate(prev.map(|p| p.1), w, elapsed),
+                        )
+                    }
+                    _ => (None, None),
+                };
+                live_keys.push(key);
+                (Some(id), extra, user, rates)
+            }
+            None => (None, Extra::default(), None, (None, None)),
+        };
+        let suspended = identity
+            .as_deref()
+            .is_some_and(|id| procinfo::is_suspended(pid, id));
+        processes.push(ProcessInfo {
+            pid,
             parent_pid: p.parent().map(|id| id.as_u32()),
             name: p.name().to_string_lossy().into_owned(),
             cpu_usage: p.cpu_usage(),
             memory: p.memory(),
-            status: format!("{:?}", p.status()),
+            status: if suspended {
+                "Suspended".into()
+            } else {
+                format!("{:?}", p.status())
+            },
             start_time: p.start_time(),
-            identity: identity::identity_of(pid.as_u32()),
+            identity,
             exe: p.exe().map(|path| path.to_string_lossy().into_owned()),
             command: p
                 .cmd()
@@ -132,8 +210,19 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
                 .map(|part| part.to_string_lossy())
                 .collect::<Vec<_>>()
                 .join(" "),
-        })
-        .collect();
+            user,
+            thread_count: table.get(&pid).map(|t| t.0),
+            extra,
+            io_read_per_s: io_rates.0,
+            io_write_per_s: io_rates.1,
+            gpu_percent: gpu_snapshot
+                .supported
+                .then(|| gpu_per_pid.get(&pid).copied().unwrap_or(0.0)),
+            suspended,
+        });
+    }
+    c.io_prev = next_io;
+    c.users.retain(|k, _| live_keys.contains(k));
 
     let disks = c
         .disks
@@ -191,8 +280,12 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
             .unwrap_or_default(),
         logical_cores: cpus.len(),
         physical_cores: c.system.physical_core_count(),
+        memory_detail: memory_detail(),
         disks,
         networks,
+        perf,
+        gpu: gpu_snapshot,
+        gpu_adapters: c.gpu_adapters.clone(),
         processes,
     }
 }
@@ -209,18 +302,39 @@ mod tests {
     }
 
     #[test]
-    fn collector_reports_real_machine_data() {
+    fn counter_rates_handle_missing_and_backwards_counters() {
+        assert_eq!(counter_rate(Some(100), 300, Some(2.0)), Some(100.0));
+        assert_eq!(counter_rate(None, 300, Some(2.0)), None);
+        assert_eq!(counter_rate(Some(500), 300, Some(2.0)), None);
+        assert_eq!(counter_rate(Some(100), 300, None), None);
+    }
+
+    #[test]
+    fn snapshot_reports_real_machine_data() {
         let mut c = new_collector();
-        c.system.refresh_memory();
-        c.system
-            .refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh_kind());
-        assert!(c.system.total_memory() > 0);
-        assert!(!c.system.cpus().is_empty());
-        let me = sysinfo::Pid::from_u32(std::process::id());
-        assert!(
-            c.system.process(me).is_some(),
-            "own process must be enumerated"
-        );
-        assert!(!c.disks.list().is_empty(), "at least one volume expected");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let first = take_snapshot(&mut c);
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        let s = take_snapshot(&mut c);
+        assert!(s.total_memory > 0 && !s.cpu_cores.is_empty());
+        assert!((0.0..=100.0).contains(&s.cpu_usage));
+        assert!(!s.disks.is_empty());
+        let me = std::process::id();
+        let mine = s
+            .processes
+            .iter()
+            .find(|p| p.pid == me)
+            .expect("own process listed");
+        assert!(mine.identity.is_some() && mine.user.is_some());
+        assert!(mine.thread_count.unwrap() >= 1);
+        assert!(mine.extra.handle_count.unwrap() > 0);
+        assert!(mine.extra.private_bytes.unwrap() > 0);
+        assert_eq!(mine.extra.priority, Some("Normal"));
+        // First sample has no rates; the second does.
+        let mine_first = first.processes.iter().find(|p| p.pid == me).unwrap();
+        assert!(mine_first.io_read_per_s.is_none());
+        assert!(mine.io_read_per_s.is_some());
+        assert!(!s.perf.physical_disks.is_empty());
+        assert!(s.memory_detail.commit_total.is_some());
     }
 }

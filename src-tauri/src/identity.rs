@@ -65,7 +65,13 @@ impl fmt::Display for TerminateError {
 }
 
 /// Owned process handle, closed on drop.
-struct OwnedHandle(HANDLE);
+pub(crate) struct OwnedHandle(HANDLE);
+
+impl OwnedHandle {
+    pub(crate) fn raw(&self) -> HANDLE {
+        self.0
+    }
+}
 
 impl Drop for OwnedHandle {
     fn drop(&mut self) {
@@ -137,6 +143,14 @@ fn classify_denied(pid: u32, expected: u64) -> TerminateError {
     }
 }
 
+/// Opens a process for read-only queries and returns the handle together with its identity token.
+/// One handle serves every cheap per-process query in a snapshot.
+pub(crate) fn open_for_query(pid: u32) -> Option<(OwnedHandle, String)> {
+    let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION).ok()?;
+    let identity = creation_time_of(&handle)?.to_string();
+    Some((handle, identity))
+}
+
 /// Creation time of a process as an opaque identity token, or `None` when the
 /// process cannot be opened (exited, or access denied).
 pub fn identity_of(pid: u32) -> Option<String> {
@@ -182,13 +196,18 @@ pub fn check_policy(
     Ok(())
 }
 
-/// Terminate the process `pid` only if its creation time equals `identity`.
-/// Identity is verified and the kill is issued on the same handle.
-pub fn terminate(pid: u32, identity: &str) -> Result<(), TerminateError> {
+/// Opens `pid` with `access` and proves the handle refers to the process the user selected, i.e. its
+/// creation time equals `identity`. All state-changing process actions start here, so none of them can
+/// land on a process that merely reuses the PID.
+pub(crate) fn open_verified(
+    pid: u32,
+    identity: &str,
+    access: u32,
+) -> Result<OwnedHandle, TerminateError> {
     let expected: u64 = identity
         .parse()
         .map_err(|_| TerminateError::InvalidIdentity)?;
-    let handle = match open(pid, PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION) {
+    let handle = match open(pid, access | PROCESS_QUERY_LIMITED_INFORMATION) {
         Ok(handle) => handle,
         Err(TerminateError::AccessDenied) => return Err(classify_denied(pid, expected)),
         Err(other) => return Err(other),
@@ -200,14 +219,29 @@ pub fn terminate(pid: u32, identity: &str) -> Result<(), TerminateError> {
     if has_exited(&handle) {
         return Err(TerminateError::NotFound);
     }
+    Ok(handle)
+}
+
+/// Applies the self / critical / core-process policy to an already verified handle.
+pub(crate) fn check_policy_for_handle(
+    handle: &OwnedHandle,
+    pid: u32,
+) -> Result<(), TerminateError> {
     // SAFETY: trivial FFI call with no arguments.
     let own = unsafe { GetCurrentProcessId() };
     check_policy(
         pid,
         own,
-        image_path_of(&handle).as_deref(),
-        is_critical(&handle),
-    )?;
+        image_path_of(handle).as_deref(),
+        is_critical(handle),
+    )
+}
+
+/// Terminate the process `pid` only if its creation time equals `identity`.
+/// Identity is verified and the kill is issued on the same handle.
+pub fn terminate(pid: u32, identity: &str) -> Result<(), TerminateError> {
+    let handle = open_verified(pid, identity, PROCESS_TERMINATE)?;
+    check_policy_for_handle(&handle, pid)?;
     // SAFETY: handle was opened with PROCESS_TERMINATE and is still owned by us.
     if unsafe { TerminateProcess(handle.0, 1) } == 0 {
         // SAFETY: last-error read immediately after the failing call.

@@ -2,9 +2,14 @@
 
 mod collector;
 mod connections;
+mod gpu;
 mod identity;
+mod pdh;
+mod perf;
+mod procinfo;
 mod services;
 mod startup;
+mod system;
 
 use std::sync::Mutex;
 use tauri::State;
@@ -75,6 +80,64 @@ fn reveal_in_explorer(path: String) -> Result<(), String> {
         .map_err(|e| format!("Could not open Explorer: {e}"))
 }
 
+fn verified<T>(r: Result<T, identity::TerminateError>) -> Result<T, String> {
+    r.map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+fn process_threads(pid: u32, identity: String) -> Result<Vec<procinfo::ThreadInfo>, String> {
+    verified(procinfo::threads(pid, &identity))
+}
+
+#[tauri::command(async)]
+fn process_modules(pid: u32, identity: String) -> Result<Vec<procinfo::ModuleInfo>, String> {
+    verified(procinfo::modules(pid, &identity))
+}
+
+#[tauri::command(async)]
+fn process_file_info(path: String) -> Result<system::FileInfo, String> {
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() || !p.is_file() {
+        return Err("That file does not exist.".into());
+    }
+    Ok(system::file_info(&path))
+}
+
+#[tauri::command(async)]
+fn set_process_priority(pid: u32, identity: String, priority: String) -> Result<(), String> {
+    procinfo::set_priority(pid, &identity, &priority)
+}
+
+#[tauri::command(async)]
+fn get_process_affinity(pid: u32, identity: String) -> Result<(u64, u64), String> {
+    procinfo::affinity(pid, &identity)
+}
+
+#[tauri::command(async)]
+fn set_process_affinity(pid: u32, identity: String, mask: u64) -> Result<(), String> {
+    procinfo::set_affinity(pid, &identity, mask)
+}
+
+#[tauri::command(async)]
+fn suspend_process(pid: u32, identity: String, suspend: bool) -> Result<u32, String> {
+    procinfo::set_suspended(pid, &identity, suspend)
+}
+
+#[tauri::command(async)]
+fn terminate_process_tree(pid: u32, identity: String) -> Result<procinfo::TreeResult, String> {
+    procinfo::terminate_tree(pid, &identity)
+}
+
+#[tauri::command(async)]
+fn system_info() -> system::SystemInfo {
+    system::system_info()
+}
+
+#[tauri::command(async)]
+fn list_sessions() -> Vec<system::SessionInfo> {
+    system::sessions()
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Monitor(Mutex::new(collector::new_collector())))
@@ -86,7 +149,17 @@ fn main() {
             list_connections,
             list_startup,
             set_startup_enabled,
-            reveal_in_explorer
+            reveal_in_explorer,
+            process_threads,
+            process_modules,
+            process_file_info,
+            set_process_priority,
+            get_process_affinity,
+            set_process_affinity,
+            suspend_process,
+            terminate_process_tree,
+            system_info,
+            list_sessions
         ])
         .run(tauri::generate_context!())
         .expect("Failed to run TaskLens");
