@@ -1,28 +1,35 @@
-name: Windows checks
+name: CI
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  verify:
+  checks:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Frontend checks
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          node --experimental-strip-types --test tests/*.test.mjs
           npm run typecheck
           npm run lint
           npm test
@@ -32,14 +39,36 @@ jobs:
           cargo fmt --manifest-path src-tauri/Cargo.toml --check
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
           cargo test --manifest-path src-tauri/Cargo.toml
+  build:
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
       - name: Build desktop application
         run: npm run tauri build
-      - name: Upload unsigned build for inspection
-        uses: actions/upload-artifact@v4
+      - name: Collect artifacts and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-artifacts | Out-Null
+          Copy-Item src-tauri/target/release/tasklens.exe dist-artifacts/TaskLens-portable-x64.exe
+          Copy-Item src-tauri/target/release/bundle/nsis/*.exe dist-artifacts/
+          Get-ChildItem dist-artifacts -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist-artifacts/SHA256SUMS.txt
+          Get-Content dist-artifacts/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
         with:
-          name: traceback-windows-x64-unverified
-          path: |
-            src-tauri/target/release/traceback.exe
-            src-tauri/target/release/bundle/nsis/*.exe
+          name: tasklens-windows-x64-unsigned
+          path: dist-artifacts/*
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14

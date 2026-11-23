@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="TaskLens logo">
+  <rect width="256" height="256" rx="56" fill="#14171c"/>
+  <circle cx="116" cy="116" r="62" fill="none" stroke="#4f8cff" stroke-width="16"/>
+  <path d="M76 118h24l14-34 22 70 14-36h18" fill="none" stroke="#4fc19a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M164 164l52 52" stroke="#4f8cff" stroke-width="18" stroke-linecap="round"/>
+</svg>
