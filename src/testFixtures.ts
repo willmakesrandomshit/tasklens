@@ -18,7 +18,8 @@ export function snapshot(processes: ProcessInfo[] = [proc(10, 'alpha.exe', { cpu
     memory_detail: { commit_total: 9e9, commit_limit: 2e10, commit_peak: 1e10, system_cache: 1e9, kernel_paged: 3e8, kernel_nonpaged: 2e8, handle_count: 5000, process_count: processes.length, thread_count: 900 },
     disks: [{ name: 'C:', mount: 'C:\\', file_system: 'NTFS', total: 1e12, available: 4e11, read_per_s: 1000, write_per_s: 2000 }],
     networks: [{ name: 'WiFi', received_per_s: 5000, transmitted_per_s: 1000, total_received: 1, total_transmitted: 1, addresses: ['192.168.1.5'], mtu: 1500 }],
-    perf: { physical_disks: [{ name: '0 C:', active_percent: 12, response_ms: 0.4, read_per_s: 1000, write_per_s: 2000, queue_length: 0 }], memory_lists: { standby: 2e9, modified: 1e8, free: 3e9 }, link_speeds: [{ name: 'WiFi', bits_per_s: 866_000_000 }] },
+    perf: { physical_disks: [{ name: '0 C:', active_percent: 12, response_ms: 0.4, read_per_s: 1000, write_per_s: 2000, queue_length: 0 }], memory_lists: { standby: 2e9, modified: 1e8, free: 3e9 } },
+    net_adapters: [{ name: 'WiFi', description: 'Test Wi-Fi', status: 'Connected', kind: 'Wi-Fi', link_speed_bps: 866_000_000 }],
     gpu: { supported: false, live: [] }, gpu_adapters: [{ name: 'Test GPU', driver_version: '1.0', driver_date: '2026', provider: 'Test', dedicated_memory: 8 * 1024 ** 3 }],
     processes,
   };

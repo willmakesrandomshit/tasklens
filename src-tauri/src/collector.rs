@@ -6,6 +6,7 @@
 //! delta needs two readings. Rates are `None` until two samples exist so "unknown" is never shown as 0.
 
 use crate::gpu::{GpuSampler, GpuSnapshot};
+use crate::netinfo::{self, AdapterInfo};
 use crate::perf::{PerfSampler, PerfSnapshot};
 use crate::procinfo::{self, Extra};
 use crate::system::{memory_detail, MemoryDetail};
@@ -30,6 +31,7 @@ pub struct Collector {
     /// Previous cumulative I/O bytes per `pid:identity` for rate calculation.
     io_prev: HashMap<String, (u64, u64)>,
     gpu_adapters: Vec<gpu::GpuAdapterInfo>,
+    net_adapters: (Option<Instant>, Vec<AdapterInfo>),
 }
 
 #[derive(Serialize)]
@@ -100,6 +102,7 @@ pub struct Snapshot {
     perf: PerfSnapshot,
     gpu: GpuSnapshot,
     gpu_adapters: Vec<gpu::GpuAdapterInfo>,
+    net_adapters: Vec<AdapterInfo>,
     processes: Vec<ProcessInfo>,
 }
 
@@ -129,6 +132,7 @@ pub fn new_collector() -> Collector {
         users: HashMap::new(),
         io_prev: HashMap::new(),
         gpu_adapters: gpu::adapters(),
+        net_adapters: (None, Vec::new()),
     }
 }
 
@@ -156,6 +160,13 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
     let (gpu_snapshot, gpu_per_pid) = c.gpu.sample();
     let perf = c.perf.sample();
     let table = procinfo::process_table();
+    // Adapter facts change rarely; refresh them every 10 seconds.
+    if c.net_adapters
+        .0
+        .is_none_or(|t| now.duration_since(t).as_secs() >= 10)
+    {
+        c.net_adapters = (Some(now), netinfo::adapters());
+    }
 
     let mut next_io: HashMap<String, (u64, u64)> = HashMap::new();
     let mut live_keys: Vec<String> = Vec::new();
@@ -286,6 +297,7 @@ pub fn take_snapshot(c: &mut Collector) -> Snapshot {
         perf,
         gpu: gpu_snapshot,
         gpu_adapters: c.gpu_adapters.clone(),
+        net_adapters: c.net_adapters.1.clone(),
         processes,
     }
 }
@@ -488,5 +500,6 @@ mod tests {
         assert!(mine.io_read_per_s.is_some());
         assert!(!s.perf.physical_disks.is_empty());
         assert!(s.memory_detail.commit_total.is_some());
+        assert!(s.net_adapters.iter().any(|a| a.status == "Connected"));
     }
 }

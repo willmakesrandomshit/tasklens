@@ -7,6 +7,7 @@ mod engine;
 mod gpu;
 mod history;
 mod identity;
+mod netinfo;
 mod pdh;
 mod perf;
 mod procinfo;

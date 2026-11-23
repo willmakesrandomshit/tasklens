@@ -1,5 +1,5 @@
 //! PDH-backed metrics that sysinfo cannot supply: physical-disk activity and latency, the memory page
-//! lists (standby/modified/free), and network link speeds. Every value is `Option` so "not measurable"
+//! lists (standby/modified/free). Every value is `Option` so "not measurable"
 //! is never shown as zero.
 
 use crate::pdh::Query;
@@ -25,17 +25,10 @@ pub struct MemoryLists {
     pub free: Option<u64>,
 }
 
-#[derive(Serialize, Clone, Debug)]
-pub struct LinkSpeed {
-    pub name: String,
-    pub bits_per_s: u64,
-}
-
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct PerfSnapshot {
     pub physical_disks: Vec<PhysicalDisk>,
     pub memory_lists: MemoryLists,
-    pub link_speeds: Vec<LinkSpeed>,
 }
 
 pub struct PerfSampler {
@@ -100,19 +93,9 @@ impl PerfSampler {
             modified: sum(&["modified"]),
             free: sum(&["free"]),
         };
-        let link_speeds = q
-            .values("link")
-            .into_iter()
-            .filter(|(_, v)| *v > 0.0)
-            .map(|(name, v)| LinkSpeed {
-                name,
-                bits_per_s: v as u64,
-            })
-            .collect();
         PerfSnapshot {
             physical_disks,
             memory_lists,
-            link_speeds,
         }
     }
 }
@@ -136,9 +119,5 @@ mod tests {
             .all(|d| d.active_percent.is_none_or(|p| (0.0..=100.0).contains(&p))));
         assert!(snap.memory_lists.free.is_some_and(|f| f > 0));
         assert!(snap.memory_lists.standby.is_some());
-        assert!(
-            !snap.link_speeds.is_empty(),
-            "at least one adapter reports a link speed"
-        );
     }
 }

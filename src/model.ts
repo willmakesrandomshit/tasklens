@@ -31,14 +31,15 @@ export interface GpuLive {
 export interface GpuAdapter {
   name: string; driver_version: string | null; driver_date: string | null; provider: string | null; dedicated_memory: number | null;
 }
+export interface NetAdapter { name: string; description: string; status: string; kind: string; link_speed_bps: number | null }
 export interface Snapshot {
   timestamp: number; cpu_usage: number; cpu_cores: number[]; cpu_frequency_mhz: number | null;
   total_memory: number; used_memory: number; available_memory: number; total_swap: number; used_swap: number;
   cpu_model: string; logical_cores: number; physical_cores: number | null;
   memory_detail: MemoryDetail;
   disks: DiskInfo[]; networks: NetworkInfo[];
-  perf: { physical_disks: PhysicalDisk[]; memory_lists: { standby: number | null; modified: number | null; free: number | null }; link_speeds: { name: string; bits_per_s: number }[] };
-  gpu: { supported: boolean; live: GpuLive[] }; gpu_adapters: GpuAdapter[];
+  perf: { physical_disks: PhysicalDisk[]; memory_lists: { standby: number | null; modified: number | null; free: number | null } };
+  gpu: { supported: boolean; live: GpuLive[] }; gpu_adapters: GpuAdapter[]; net_adapters: NetAdapter[];
   processes: ProcessInfo[];
 }
 export interface TreeRow { process: ProcessInfo; depth: number; hasChildren: boolean; expanded: boolean }

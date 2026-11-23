@@ -169,6 +169,7 @@ try {
   await waitFor(`document.querySelector('.action-ok')?.innerText.includes('Suspended')`, 'suspend message');
   const suspended = ps(`(Get-Process -Id ${victim.pid}).Threads | ForEach-Object { $_.WaitReason } | Select-Object -Unique`);
   check('suspend through the UI suspends the process threads', /Suspended/.test(suspended), suspended);
+  await waitFor(`[...document.querySelectorAll('.inspector .secondary-button')].some(b => b.innerText === 'Resume')`, 'Resume button after the next refresh', 8000);
   await ev(`[...document.querySelectorAll('.inspector .secondary-button')].find(b => b.innerText === 'Resume').click()`);
   await waitFor(`document.querySelector('.action-ok')?.innerText.includes('Resumed')`, 'resume message');
   check('resume works', !/Suspended/.test(ps(`(Get-Process -Id ${victim.pid}).Threads | ForEach-Object { $_.WaitReason } | Select-Object -Unique`)));
@@ -205,10 +206,17 @@ try {
   const csrss = await ev(`(() => { const r = document.querySelector('.process-row'); return r ? r.children[1].innerText : null; })()`);
   if (csrss) {
     await selectRow(csrss);
-    await ev(`[...document.querySelectorAll('.inspector .danger-button')].find(b => b.innerText === 'End process').click()`);
-    const modal = await ev(`!!document.querySelector('.modal')`);
-    if (modal) { await ev(`document.querySelector('.modal .danger-button').click()`); await sleep(1500); }
-    check('a critical Windows process is refused (csrss.exe still alive)', alive(csrss) && /Refused|denied|critical|cannot/i.test(await ev(`document.querySelector('.action-error')?.innerText ?? ''`)), await ev(`document.querySelector('.action-error')?.innerText ?? ''`));
+    const endBtn = await ev(`(() => { const b = [...document.querySelectorAll('.inspector .danger-button')].find(x => x.innerText === 'End process'); return b.disabled + '|' + b.title; })()`);
+    if (endBtn.startsWith('true|')) {
+      check('a critical Windows process cannot be ended (button disabled with an explanation)', alive(csrss), endBtn.split('|')[1]);
+    } else {
+      await ev(`[...document.querySelectorAll('.inspector .danger-button')].find(b => b.innerText === 'End process').click()`);
+      await waitFor(`document.querySelector('.modal')`, 'confirm');
+      await ev(`document.querySelector('.modal .danger-button').click()`);
+      await sleep(1500);
+      const msg = await ev(`document.querySelector('.action-error')?.innerText ?? ''`);
+      check('a critical Windows process is refused by the backend (csrss.exe still alive)', alive(csrss) && /Refused|denied|critical|cannot/i.test(msg), msg);
+    }
   } else check('csrss.exe visible for refusal test', false, 'not listed');
   await setInput('input[aria-label="Search processes"]', '');
   await ev(`document.querySelector('.inspector-head .icon-button')?.click()`);
@@ -231,7 +239,7 @@ try {
   await ev(`[...document.querySelectorAll('.perf-tile')].find(b => b.innerText.startsWith('Network')).click()`);
   await sleep(2500);
   const net = await ev(`document.querySelector('.perf-detail').innerText.replace(/\\s+/g, ' ')`);
-  check('network adapters with link speed shown', /Mbps|Gbps/.test(net), net.slice(0, 160));
+  check('network adapters show status and link speed', /Connected/.test(net) && /Mbps|Gbps/.test(net), net.slice(0, 200));
   await ev(`[...document.querySelectorAll('.perf-tile')].find(b => b.innerText.startsWith('GPU')).click()`);
   await sleep(1000);
   const gpu = await ev(`document.querySelector('.perf-detail').innerText.replace(/\\s+/g, ' ')`);

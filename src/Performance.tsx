@@ -8,7 +8,6 @@ const RANGES: [number, string][] = [[60, '1 minute'], [300, '5 minutes'], [900, 
 
 interface Props { snapshot: Snapshot | null; history: MetricHistory; intervalMs: number; paused: boolean; onPause: (p: boolean) => void; range: number; onRange: (r: number) => void }
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 const tail = <T,>(a: T[], n: number) => (a.length > n ? a.slice(-n) : a);
 
 function Tile({ id, tab, onTab, title, value, sub, spark, color }: { id: Tab; tab: Tab; onTab: (t: Tab) => void; title: string; value: string; sub: string; spark: number[]; color: string }) {
@@ -93,7 +92,7 @@ export function Performance({ snapshot: s, history: h, intervalMs, paused, onPau
         {tab === 'network' && s && <article className="metric">
           <div className="metric-head"><div><span>NETWORK</span><h2>Adapters</h2></div><strong>{lastIn == null ? '—' : `${rate(lastIn)} down`}</strong></div>
           {g('Network throughput', [{ values: view(h.netIn), color: 'var(--accent)', label: 'Download' }, { values: view(h.netOut), color: 'var(--green)', label: 'Upload' }], rate)}
-          <table className="mini-table"><thead><tr><th>Adapter</th><th>Down</th><th>Up</th><th>Link speed</th><th>Addresses</th></tr></thead><tbody>{s.networks.map(n => { const link = s.perf.link_speeds.find(l => norm(l.name) === norm(n.name)); return <tr key={n.name}><td title={n.name}>{n.name}</td><td>{rate(n.received_per_s)}</td><td>{rate(n.transmitted_per_s)}</td><td>{link ? bitRate(link.bits_per_s) : '—'}</td><td>{n.addresses.join(', ') || '—'}</td></tr>; })}</tbody></table>
+          <table className="mini-table"><thead><tr><th>Adapter</th><th>Down</th><th>Up</th><th>Status</th><th>Link speed</th><th>Addresses</th></tr></thead><tbody>{s.networks.map(n => { const a = s.net_adapters.find(x => x.name === n.name); return <tr key={n.name}><td title={a?.description ?? n.name}>{n.name}{a ? <small className="muted"> {a.kind}</small> : null}</td><td>{rate(n.received_per_s)}</td><td>{rate(n.transmitted_per_s)}</td><td>{a?.status ?? '—'}</td><td>{a?.link_speed_bps ? bitRate(a.link_speed_bps) : '—'}</td><td>{n.addresses.join(', ') || '—'}</td></tr>; })}</tbody></table>
           <p className="muted">Virtual filter-driver adapters repeat the physical adapter's counters; totals count only adapters that own an address. Per-process bandwidth is not measured.</p>
         </article>}
         {tab === 'gpu' && s && <article className="metric">

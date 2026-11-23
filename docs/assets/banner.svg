@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" role="img" aria-label="TaskLens: Your system. Every process. Total control.">
+  <rect width="1280" height="320" fill="#0f1115"/>
+  <g transform="translate(96 72) scale(.72)">
+    <rect width="256" height="256" rx="56" fill="#14171c" stroke="#2a2f38" stroke-width="3"/>
+    <circle cx="116" cy="116" r="62" fill="none" stroke="#4f8cff" stroke-width="16"/>
+    <path d="M76 118h24l14-34 22 70 14-36h18" fill="none" stroke="#4fc19a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M164 164l52 52" stroke="#4f8cff" stroke-width="18" stroke-linecap="round"/>
+  </g>
+  <text x="330" y="150" font-family="Segoe UI, system-ui, sans-serif" font-size="84" font-weight="600" fill="#e8ebf0">TaskLens</text>
+  <text x="334" y="204" font-family="Segoe UI, system-ui, sans-serif" font-size="30" fill="#98a1af">Your system. Every process. Total control.</text>
+  <text x="334" y="246" font-family="Segoe UI, system-ui, sans-serif" font-size="20" fill="#4f8cff">Open-source Windows task manager · Rust + Tauri</text>
+</svg>
