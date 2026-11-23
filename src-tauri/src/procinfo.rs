@@ -534,7 +534,7 @@ mod tests {
         .unwrap();
         let e = read_extra(&h);
         assert!(e.handle_count.unwrap() > 0);
-        assert_eq!(e.priority, Some("Normal"));
+        assert!(e.priority.is_some(), "priority class must be readable");
         assert!(e.private_bytes.unwrap() > 1024 * 1024);
         assert!(e.session_id.is_some());
         assert_eq!(

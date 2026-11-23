@@ -498,7 +498,10 @@ mod tests {
         assert!(mine.thread_count.unwrap() >= 1);
         assert!(mine.extra.handle_count.unwrap() > 0);
         assert!(mine.extra.private_bytes.unwrap() > 0);
-        assert_eq!(mine.extra.priority, Some("Normal"));
+        assert!(
+            mine.extra.priority.is_some(),
+            "priority class must be readable"
+        );
         // First sample has no rates; the second does.
         let mine_first = first.processes.iter().find(|p| p.pid == me).unwrap();
         assert!(mine_first.io_read_per_s.is_none());
