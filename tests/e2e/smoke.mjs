@@ -12,7 +12,7 @@ const app = spawn(exe, [], {
   stdio: 'ignore',
 });
 let victim;
-const cleanup = () => { try { app.kill(); } catch {} try { victim?.kill(); } catch {} };
+const cleanup = () => { try { app.kill(); } catch { /* best effort */ } try { victim?.kill(); } catch { /* best effort */ } };
 process.on('exit', cleanup);
 
 async function target() {
@@ -21,7 +21,7 @@ async function target() {
       const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
       const page = list.find(t => t.type === 'page');
       if (page) return page;
-    } catch {}
+    } catch { /* best effort */ }
     await sleep(500);
   }
   throw new Error('WebView2 debug target never appeared');
