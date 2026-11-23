@@ -27,24 +27,25 @@ Last updated: 2026-11-23. Classification: **Verified** = exercised by automated 
 | Users | Sessions + per-session/per-account totals | Verified |
 | System | Windows/CPU/memory/GPU/storage/network info | Verified |
 | History | SQLite recording, bounded retention, spike timeline, events, CSV export, clear | Verified (recording); export/clear unit-tested |
-| Alerts | Rules, duration, cooldown, in-app notices, history | Rule engine verified; firing end-to-end unverified; Windows toasts **Missing** |
+| Alerts | Rules, duration, cooldown, in-app notices, history | Verified (a rule fired in the real app and was logged); Windows toasts **Missing** |
 | Settings | Theme/accent/density/text size/motion, persistence, corruption recovery | Verified |
-| Application | Tray, compact monitor, always-on-top, close-to-tray, start minimized, autostart (opt-in) | Implemented, **unverified** (tray/compact/autostart not exercised) |
+| Application | Compact monitor, always-on-top, opt-in start with Windows (Run entry) | Verified against the real OS (window size, TOPMOST style, registry) |
+| | System tray icon, close-to-tray, start minimized | Implemented, **unverified** (not exercised by tests) |
 | Scheduled tasks | – | **Missing** |
 | Distribution | Release build, NSIS installer install/uninstall, portable exe | Verified (unsigned) |
-| | GitHub Actions CI | Running on every push; see PR #1 |
+| | GitHub Actions CI | Green on PR #1 (checks + Windows build jobs) |
 | | Pre-release workflow | Written, **not yet run** (no tag pushed) |
 
 ## Repository / collaboration
 - Public repo `willmakesrandomshit/tasklens` (renamed from "Traceback" at the owner's request); `main` = recovered baseline,
   work on `feat/process-identity-safety` (PR #1).
 - `mynameisjapan26-hue` invited with write access; **acceptance not confirmed** (collaborators list shows only the owner).
-- Branch protection not yet enabled. No release published. No launch video produced.
+- Branch protection enabled on `main`: PR + 1 approving review, status checks `checks` and `build`, no force-push, conversations must be resolved (the owner can still merge as admin). Milestones and 10 starter issues (#12–#21) created. No release published.
 
 ## Next actions
 1. Merge PR #1 once CI is green; enable branch protection on `main`.
 2. Exercise tray, compact mode, autostart and a real alert firing in the e2e script.
-3. Windows 10 / scaling / multi-monitor verification; 24 h stability run.
-4. Reduce idle CPU below 1 % (see benchmarks) and WebView2 memory.
-5. Scheduled tasks module; per-process network bandwidth (ETW); Windows toast notifications.
-6. Tag `v0.1.0-alpha.1` to exercise the pre-release workflow; launch video from real footage.
+2. Windows 10 / scaling / multi-monitor verification; 24 h stability run.
+3. Reduce idle CPU below 1 % (see benchmarks) and WebView2 memory.
+4. Scheduled tasks module; per-process network bandwidth (ETW); Windows toast notifications.
+5. Tag `v0.1.0-alpha.1` to exercise the pre-release workflow; launch video from real footage.

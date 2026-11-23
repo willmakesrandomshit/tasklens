@@ -306,6 +306,48 @@ try {
   await shot('alerts');
   await goto('Settings', `document.querySelector('.settings-page')`);
 
+  // ---- application features verified against the real OS: autostart, always-on-top, compact monitor, alerts
+  const runKey = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+  const autoPresent = () => ps(`$null -ne (Get-ItemProperty '${runKey}' -ErrorAction SilentlyContinue).TaskLens`) === 'True';
+  const topmost = () => ps(`Add-Type -Name W -Namespace N -MemberDefinition '[DllImport("user32.dll")] public static extern int GetWindowLong(System.IntPtr h, int i);' -ErrorAction SilentlyContinue; (([N.W]::GetWindowLong((Get-Process -Id ${app.pid}).MainWindowHandle, -20)) -band 8) -ne 0`) === 'True';
+  await goto('Settings', `document.querySelector('.settings-page')`);
+  const autoBefore = autoPresent();
+  await setCheckbox('Start with Windows');
+  await sleep(1500);
+  check('opt-in "Start with Windows" writes the Run entry', autoPresent() === !autoBefore);
+  await setCheckbox('Start with Windows');
+  await sleep(1500);
+  check('turning it off removes the Run entry again', autoPresent() === autoBefore);
+  check('window is not always-on-top by default', !topmost());
+  await setCheckbox('Always on top');
+  await sleep(1500);
+  check('always-on-top makes the real window topmost', topmost());
+  await setCheckbox('Always on top');
+  await sleep(1500);
+  check('always-on-top can be turned off', !topmost());
+  const widthBefore = await ev(`window.innerWidth`);
+  await setCheckbox('Compact monitor');
+  await waitFor(`document.querySelector('.compact')`, 'compact monitor');
+  await sleep(1200);
+  const compactWidth = await ev(`window.innerWidth`);
+  check('compact monitor shrinks the window and shows live CPU/RAM', compactWidth < 500 && /CPU/.test(await ev(`document.querySelector('.compact').innerText`)), `${widthBefore}px -> ${compactWidth}px`);
+  check('compact monitor is always on top', topmost());
+  await shot('compact');
+  await ev(`[...document.querySelectorAll('.compact button')].find(b => b.innerText.includes('Exit compact')).click()`);
+  await waitFor(`document.querySelector('.settings-page')`, 'settings after compact');
+  await sleep(1500);
+  check('leaving compact mode restores size and normal stacking', (await ev(`window.innerWidth`)) > 700 && !topmost());
+  await goto('Alerts', `document.querySelector('.page-heading')`);
+  await ev(`[...document.querySelectorAll('button')].find(b => b.innerText === 'Add alert').click()`);
+  await waitFor(`document.querySelector('input[aria-label="Threshold percent"]')`, 'rule editor');
+  await setInput('input[aria-label="Threshold percent"]', '0');
+  await setInput('input[aria-label="Duration seconds"]', '0');
+  await waitFor(`document.querySelector('.toast')`, 'alert toast', 25000);
+  check('a firing alert shows an in-app notice', /CPU usage is/.test(await ev(`document.querySelector('.toast').innerText`)), await ev(`document.querySelector('.toast').innerText.replace(/\\s+/g, ' ')`));
+  await sleep(5000);
+  check('the alert is recorded in the alert history', (await ev(`document.querySelectorAll('.data-table tbody tr').length`)) >= 1);
+  await shot('alert-fired');
+
   // ---- responsive layout
   await goto('Processes', `document.querySelectorAll('.process-row').length > 0`);
   await send('Emulation.setDeviceMetricsOverride', { width: 820, height: 600, deviceScaleFactor: 1, mobile: false });
