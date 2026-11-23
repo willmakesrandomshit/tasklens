@@ -39,8 +39,11 @@ navigation through all 12 pages, theme switching + persistence call, accent/dens
 settings note, alert editor, **stale save reply never overwrites a newer change**.
 
 ## End-to-end test of the real app (`npm run e2e`)
-`tests/e2e/smoke.mjs` launches the release exe with WebView2 remote debugging and drives the real UI. **43 / 43 checks
+`tests/e2e/smoke.mjs` launches the release exe with WebView2 remote debugging and drives the real UI. **53 / 53 checks
 passed** on the final build, including:
+- opt-in autostart writes and removes the real HKCU Run entry; always-on-top sets the real window's TOPMOST style;
+  the compact monitor shrinks the window (1280 → 400 px) and shows live data; **a firing alert shows a notice and is
+  logged**
 - real process data (UI count vs `Get-Process`), live updates, rich columns, search, sort, tree, grouping
 - inspector contents; context menu actions; **priority changed through the UI and confirmed by Windows**
 - **suspend/resume through the UI confirmed from the OS thread wait reasons**
@@ -50,6 +53,7 @@ passed** on the final build, including:
   GPU page lists adapters and states unavailable sensors
 - Overview, Resource Monitor, Services (core service Stop disabled), Network (listeners, process names), Startup, Users,
   System (Windows 11 Pro 25H2, UEFI)
+- opt-in autostart writes/removes the real HKCU Run entry; always-on-top sets the real window TOPMOST style; compact monitor shrinks the window (1280→400 px) and shows live data; **a firing alert shows a notice and is logged**
 - theme switch applied and **persisted to settings.json by the backend**; history recorded real samples to SQLite;
   alert editor; narrow-window layout without horizontal scroll
 
